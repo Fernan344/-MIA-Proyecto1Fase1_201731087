@@ -11,35 +11,43 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 )
 
-type Mbr struct {
-	mbr_tamaño         int64
-	mbr_fecha_creacion time.Time
-	mbr_disk_signature int64
-	disk_fit           string
-	mbr_partition_1    Partition
-	mbr_partition_2    Partition
-	mbr_partition_3    Partition
-	mbr_partition_4    Partition
+/*
+Comandos de prueba
+
+fdisk –Size->300 –path->/home/thefernan/Desktop/disk1.dsk –name->Particion1
+Mkdisk -Size->3000 –unit->K -path->/home/thefernan/Desktop/disk1.dsk
+*/
+
+type mbr struct {
+	Mbrtamaño        int64
+	Mbrfechacreacion [54]byte
+	Mbrdisksignature int64
+	Diskfit          [1]byte
+	Mbrpartition_1   partition
+	Mbrpartition_2   partition
+	Mbrpartition_3   partition
+	Mbrpartition_4   partition
 }
 
-type Partition struct {
-	part_status string
-	part_type   string
-	part_fit    string
-	part_start  int64
-	part_size   int64
-	part_name   string
+type partition struct {
+	Part_status [1]byte
+	Part_type   [1]byte
+	Part_fit    [1]byte
+	Part_start  int64
+	Part_size   int64
+	Part_name   [16]byte
 }
 
-type Ebr struct {
-	part_status string
-	part_fit    string
-	part_start  int64
-	part_size   int64
-	part_name   string
-	part_next   int64
+type ebr struct {
+	Part_status [1]byte
+	Part_fit    [1]byte
+	Part_start  int64
+	Part_size   int64
+	Part_name   [16]byte
+	Part_next   int64
 }
 
 func main() {
@@ -149,7 +157,7 @@ func executeComand(commandArray []string) {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
 
-				if caracteres[0] == "-" && caracteres[1] == "s" && caracteres[2] == "i" && caracteres[3] == "z" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "s" && caracteres[2] == "i" && caracteres[3] == "z" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
 					size = true
 					parametros := strings.Split(command, "->")
 					i1, err := strconv.Atoi(parametros[1])
@@ -161,7 +169,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if caracteres[0] == "-" && caracteres[1] == "u" && caracteres[2] == "n" && caracteres[3] == "i" && caracteres[4] == "t" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "u" && caracteres[2] == "n" && caracteres[3] == "i" && caracteres[4] == "t" && caracteres[5] == "-" && caracteres[6] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "K" || parametros[1] == "k" || parametros[1] == "M" || parametros[1] == "m" {
 						unit = true
@@ -170,11 +178,11 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if caracteres[0] == "-" && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
 					path = true
 					parametros := strings.Split(commandArray[i], "->")
 					ruta = parametros[1]
-				} else if caracteres[0] == "-" && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "i" && caracteres[4] == "-" && caracteres[5] == ">" {
+				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "i" && caracteres[4] == "-" && caracteres[5] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "BF" || parametros[1] == "FF" || parametros[1] == "WF" {
 						fit = true
@@ -196,14 +204,8 @@ func executeComand(commandArray []string) {
 					ajuste = "FF"
 				}
 
-				mbr := Mbr{}
-				mbr.mbr_tamaño = int64(tam)
-				mbr.mbr_fecha_creacion = time.Now()
-				mbr.mbr_disk_signature = int64(512)
-				mbr.disk_fit = ajuste
-
 				//se procede a crear el archivo
-				file, err := os.Create(ruta)
+				file, err := os.Create("/home/thefernan/Desktop/disk1.dsk")
 				defer file.Close()
 				if err != nil {
 					log.Fatal(err)
@@ -231,6 +233,15 @@ func executeComand(commandArray []string) {
 					escribirBytes(file, binario.Bytes())
 				}
 
+				charFit := strings.Split(ajuste, "")
+				fmt.Println(charFit)
+				mbr := mbr{}
+
+				mbr.Mbrtamaño = int64(tamTotal)
+				copy(mbr.Mbrfechacreacion[:], time.Now().String())
+				mbr.Mbrdisksignature = int64(512)
+				copy(mbr.Diskfit[:], charFit[0])
+
 				/*
 					se escribira un estudiante por default para llevar el control.
 					En el proyecto, el que nos ayuda a llevar el control de las
@@ -247,7 +258,7 @@ func executeComand(commandArray []string) {
 
 				defer file.Close()
 
-				colorize(ColorYellow, "Disco Creado")
+				colorize(ColorYellow, "Disco Creado -->"+ruta)
 			} else {
 				fmt.Println("Creacion De Disco Erronea Parametros Invalidos")
 			}
@@ -259,7 +270,15 @@ func executeComand(commandArray []string) {
 				paramsParts := strings.Split(parametro, "->")
 				path0 := paramsParts[1]
 				path := path0[0 : len(path0)-1]
-				colorize(ColorYellow, "Disco Eliminado *"+path)
+
+				err := os.Remove(path)
+
+				if err != nil {
+					colorize(ColorRed, "Error al eliminar el archivo.")
+				} else {
+					colorize(ColorYellow, "Disco Eliminado *"+path)
+				}
+
 			} else {
 				colorize(ColorRed, "Comando No Aceptado")
 			}
@@ -292,7 +311,7 @@ func executeComand(commandArray []string) {
 
 				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
 					path = true
-					parametros := strings.Split(command, "->")
+					parametros := strings.Split(commandArray[i], "->")
 					ruta = parametros[1]
 				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "n" && caracteres[2] == "a" && caracteres[3] == "m" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
 					name = true
@@ -387,7 +406,136 @@ func executeComand(commandArray []string) {
 				} else if primerComando == "add" && add == true {
 					fmt.Println("añadiendo ", agragar, "-", unidad, "-", nombre, "-", ruta)
 				} else if primerComando == "create" && size == true {
-					fmt.Println("creando ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+					mbrTemp := leerMBR(ruta)
+					status := [1]byte{65}
+					fmt.Println(mbrTemp)
+					if mbrTemp.Mbrpartition_1.Part_status != status && mbrTemp.Mbrpartition_2.Part_status != status && mbrTemp.Mbrpartition_3.Part_status != status && mbrTemp.Mbrpartition_4.Part_status != status {
+						var tamTot int64
+						if unidad == "K" || unidad == "k" {
+							tamTot = int64(tam) * 1024
+						} else if unidad == "M" || unidad == "m" {
+							tamTot = int64(tam) * 1024 * 1024
+						}
+						partition1 := partition{}
+						copy(partition1.Part_status[:], "A")
+						copy(partition1.Part_type[:], tipo)
+						copy(partition1.Part_fit[:], ajuste)
+						partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
+						partition1.Part_size = tamTot
+						copy(partition1.Part_name[:], nombre)
+						mbrTemp.Mbrpartition_1 = partition1
+						file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+						defer file.Close()
+						if err != nil {
+							log.Fatal(err)
+						}
+						file.Seek(0, 0)
+
+						var bufferEstudiante bytes.Buffer
+						binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+						escribirBytes(file, bufferEstudiante.Bytes())
+						defer file.Close()
+					} else if mbrTemp.Mbrpartition_1.Part_status != status || mbrTemp.Mbrpartition_2.Part_status != status || mbrTemp.Mbrpartition_3.Part_status != status || mbrTemp.Mbrpartition_4.Part_status != status {
+						if mbrTemp.Mbrpartition_1.Part_status != status {
+							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+							var tamTot int64
+							if unidad == "K" || unidad == "k" {
+								tamTot = int64(tam) * 1024
+							} else if unidad == "M" || unidad == "m" {
+								tamTot = int64(tam) * 1024 * 1024
+							}
+
+							////////////////////////////////////////////////////////////
+							////////////////////////////////////////////////////////////
+							////////////////////////////////////////////////////////////
+							partition1 := partition{}
+							copy(partition1.Part_status[:], "A")
+							copy(partition1.Part_type[:], tipo)
+							copy(partition1.Part_fit[:], ajuste)
+							partition1.Part_size = tamTot
+							copy(partition1.Part_name[:], nombre)
+
+							crearParticion(mbrTemp, partition1)
+
+							mbrTemp.Mbrpartition_1 = partition1
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						} else if mbrTemp.Mbrpartition_2.Part_status != status {
+							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+							partition1 := partition{}
+							copy(partition1.Part_status[:], "A")
+							copy(partition1.Part_type[:], tipo)
+							copy(partition1.Part_fit[:], ajuste)
+							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
+							partition1.Part_size = int64(unsafe.Sizeof(partition1))
+							copy(partition1.Part_name[:], nombre)
+							mbrTemp.Mbrpartition_2 = partition1
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						} else if mbrTemp.Mbrpartition_3.Part_status != status {
+							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+							partition1 := partition{}
+							copy(partition1.Part_status[:], "A")
+							copy(partition1.Part_type[:], tipo)
+							copy(partition1.Part_fit[:], ajuste)
+							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
+							partition1.Part_size = int64(unsafe.Sizeof(partition1))
+							copy(partition1.Part_name[:], nombre)
+							mbrTemp.Mbrpartition_3 = partition1
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						} else if mbrTemp.Mbrpartition_4.Part_status != status {
+							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+							partition1 := partition{}
+							copy(partition1.Part_status[:], "A")
+							copy(partition1.Part_type[:], tipo)
+							copy(partition1.Part_fit[:], ajuste)
+							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
+							partition1.Part_size = int64(unsafe.Sizeof(partition1))
+							copy(partition1.Part_name[:], nombre)
+							mbrTemp.Mbrpartition_4 = partition1
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						}
+					} else {
+						colorize(ColorRed, "Error Las Particiones Estan Completas")
+					}
 				}
 			} else {
 				fmt.Println("Administracion De Discos Cerrada Por Comandos Erroneos")
@@ -494,6 +642,55 @@ func executeComand(commandArray []string) {
 	} else {
 		colorize(ColorYellow, "Comentario De Script")
 	}
+}
+
+func leerMBR(path string) mbr {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := mbr{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(0, 0)
+	mbrTemp = obtenerMBR(file, size, mbrTemp)
+
+	return mbrTemp
+}
+
+func crearParticion(mbrTemp mbr, partition1 partition) {
+
+}
+
+func obtenerMBR(file *os.File, size int, mbrTemp mbr) mbr {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+	buffer := bytes.NewBuffer(data)
+
+	//Decodificamos y guardamos en la variable estudianteTemporal
+	err := binary.Read(buffer, binary.BigEndian, &mbrTemp)
+	if err != nil {
+		log.Fatal("binary.Read failed ", err)
+	}
+
+	//retornamos el estudiante
+	return mbrTemp
+}
+
+func leerBytes(file *os.File, number int) []byte {
+	bytes := make([]byte, number)
+
+	_, err := file.Read(bytes)
+	if err != nil {
+		log.Fatal("Error De Lectura ", err)
+	}
+
+	return bytes
 }
 
 func escribirBytes(file *os.File, bytes []byte) {
