@@ -16,7 +16,7 @@ import (
 
 /*
 Comandos de prueba
-
+/home/thefernan/Desktop/Fase 1/main.go
 fdisk –Size->300 –path->/home/thefernan/Desktop/disk1.dsk –name->Particion1
 Mkdisk -Size->3000 –unit->K -path->/home/thefernan/Desktop/disk1.dsk
 */
@@ -101,7 +101,10 @@ func interpretar() {
 
 func lineaDeComandos(comando string) {
 	var commandArray []string
-	commandArray = strings.Split(comando, " ")
+	if strings.Contains(comando, "\n") {
+		commandArray = strings.Split(comando, "\n")
+	}
+	commandArray = strings.Split(commandArray[0], " ")
 	executeComand(commandArray)
 }
 
@@ -333,9 +336,9 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "i" && caracteres[4] == "-" && caracteres[5] == ">" {
+				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
 					parametros := strings.Split(command, "->")
-					if parametros[1] == "BF" || parametros[1] == "FF" || parametros[1] == "WF" {
+					if parametros[1] == "BF" || parametros[1] == "FF" || parametros[1] == "WF" || parametros[1] == "bf" || parametros[1] == "ff" || parametros[1] == "wf" {
 						fit = true
 						ajuste = parametros[1]
 					} else {
@@ -406,16 +409,21 @@ func executeComand(commandArray []string) {
 				} else if primerComando == "add" && add == true {
 					fmt.Println("añadiendo ", agragar, "-", unidad, "-", nombre, "-", ruta)
 				} else if primerComando == "create" && size == true {
+
 					mbrTemp := leerMBR(ruta)
 					status := [1]byte{65}
 					fmt.Println(mbrTemp)
+					var tamTot int64
+					if unidad == "K" || unidad == "k" {
+						tamTot = int64(tam) * 1024
+					} else if unidad == "M" || unidad == "m" {
+						tamTot = int64(tam) * 1024 * 1024
+					}
+					fmt.Println(ajuste)
+					charfit := strings.Split(ajuste, "")
+					ajuste = charfit[0]
+
 					if mbrTemp.Mbrpartition_1.Part_status != status && mbrTemp.Mbrpartition_2.Part_status != status && mbrTemp.Mbrpartition_3.Part_status != status && mbrTemp.Mbrpartition_4.Part_status != status {
-						var tamTot int64
-						if unidad == "K" || unidad == "k" {
-							tamTot = int64(tam) * 1024
-						} else if unidad == "M" || unidad == "m" {
-							tamTot = int64(tam) * 1024 * 1024
-						}
 						partition1 := partition{}
 						copy(partition1.Part_status[:], "A")
 						copy(partition1.Part_type[:], tipo)
@@ -436,28 +444,35 @@ func executeComand(commandArray []string) {
 						escribirBytes(file, bufferEstudiante.Bytes())
 						defer file.Close()
 					} else if mbrTemp.Mbrpartition_1.Part_status != status || mbrTemp.Mbrpartition_2.Part_status != status || mbrTemp.Mbrpartition_3.Part_status != status || mbrTemp.Mbrpartition_4.Part_status != status {
-						if mbrTemp.Mbrpartition_1.Part_status != status {
-							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
-							var tamTot int64
-							if unidad == "K" || unidad == "k" {
-								tamTot = int64(tam) * 1024
-							} else if unidad == "M" || unidad == "m" {
-								tamTot = int64(tam) * 1024 * 1024
+
+						fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
+
+						////////////////////////////////////////////////////////////
+						////////////////////////////////////////////////////////////
+						////////////////////////////////////////////////////////////
+						partition1 := partition{}
+						copy(partition1.Part_status[:], "A")
+						copy(partition1.Part_type[:], tipo)
+						copy(partition1.Part_fit[:], ajuste)
+						partition1.Part_size = tamTot
+						copy(partition1.Part_name[:], nombre)
+
+						position := crearParticion(mbrTemp, partition1)
+
+						if position != -1 {
+							partition1.Part_start = position
+							if mbrTemp.Mbrpartition_1.Part_status != status {
+								mbrTemp.Mbrpartition_1 = partition1
+							} else if mbrTemp.Mbrpartition_2.Part_status != status {
+								mbrTemp.Mbrpartition_2 = partition1
+							} else if mbrTemp.Mbrpartition_3.Part_status != status {
+								mbrTemp.Mbrpartition_3 = partition1
+							} else if mbrTemp.Mbrpartition_4.Part_status != status {
+								mbrTemp.Mbrpartition_4 = partition1
 							}
 
-							////////////////////////////////////////////////////////////
-							////////////////////////////////////////////////////////////
-							////////////////////////////////////////////////////////////
-							partition1 := partition{}
-							copy(partition1.Part_status[:], "A")
-							copy(partition1.Part_type[:], tipo)
-							copy(partition1.Part_fit[:], ajuste)
-							partition1.Part_size = tamTot
-							copy(partition1.Part_name[:], nombre)
+							mbrTemp = sortPartitions(mbrTemp)
 
-							crearParticion(mbrTemp, partition1)
-
-							mbrTemp.Mbrpartition_1 = partition1
 							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
 							defer file.Close()
 							if err != nil {
@@ -469,71 +484,11 @@ func executeComand(commandArray []string) {
 							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
 							escribirBytes(file, bufferEstudiante.Bytes())
 							defer file.Close()
-						} else if mbrTemp.Mbrpartition_2.Part_status != status {
-							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
-							partition1 := partition{}
-							copy(partition1.Part_status[:], "A")
-							copy(partition1.Part_type[:], tipo)
-							copy(partition1.Part_fit[:], ajuste)
-							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
-							partition1.Part_size = int64(unsafe.Sizeof(partition1))
-							copy(partition1.Part_name[:], nombre)
-							mbrTemp.Mbrpartition_2 = partition1
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
-							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
-						} else if mbrTemp.Mbrpartition_3.Part_status != status {
-							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
-							partition1 := partition{}
-							copy(partition1.Part_status[:], "A")
-							copy(partition1.Part_type[:], tipo)
-							copy(partition1.Part_fit[:], ajuste)
-							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
-							partition1.Part_size = int64(unsafe.Sizeof(partition1))
-							copy(partition1.Part_name[:], nombre)
-							mbrTemp.Mbrpartition_3 = partition1
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
-							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
-						} else if mbrTemp.Mbrpartition_4.Part_status != status {
-							fmt.Println("Creando Particion ", tam, "-", unidad, "-", nombre, "-", ruta, "-", tipo, "-", ajuste)
-							partition1 := partition{}
-							copy(partition1.Part_status[:], "A")
-							copy(partition1.Part_type[:], tipo)
-							copy(partition1.Part_fit[:], ajuste)
-							partition1.Part_start = int64(unsafe.Sizeof(mbrTemp))
-							partition1.Part_size = int64(unsafe.Sizeof(partition1))
-							copy(partition1.Part_name[:], nombre)
-							mbrTemp.Mbrpartition_4 = partition1
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
-							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
+							fmt.Println(mbrTemp)
+						} else {
+							colorize(ColorRed, "No Hay Espacio Para La Particion")
 						}
-					} else {
+					} else if mbrTemp.Mbrpartition_1.Part_status == status && mbrTemp.Mbrpartition_2.Part_status == status && mbrTemp.Mbrpartition_3.Part_status == status && mbrTemp.Mbrpartition_4.Part_status == status {
 						colorize(ColorRed, "Error Las Particiones Estan Completas")
 					}
 				}
@@ -660,8 +615,225 @@ func leerMBR(path string) mbr {
 	return mbrTemp
 }
 
-func crearParticion(mbrTemp mbr, partition1 partition) {
+func crearParticion(mbrTemp mbr, partition1 partition) int64 {
+	position := -1
 
+	partSize := int64(partition1.Part_size)
+	sizeMbr := int64(unsafe.Sizeof(mbrTemp))
+	sizePart := partition1.Part_size
+	sizeFree := mbrTemp.Mbrpartition_1.Part_start - sizeMbr
+	ajuste := string(partition1.Part_fit[:])
+
+	status := [1]byte{65}
+	if ajuste == "F" || ajuste == "f" {
+		if mbrTemp.Mbrpartition_1.Part_status == status {
+			if sizeFree >= sizePart {
+				position = int(sizeMbr)
+			} else {
+				if mbrTemp.Mbrpartition_2.Part_status == status {
+					sizeFree = mbrTemp.Mbrpartition_2.Part_start - (mbrTemp.Mbrpartition_1.Part_start + partSize)
+					if sizeFree >= sizePart {
+						position = int(mbrTemp.Mbrpartition_1.Part_start + +partSize)
+					} else {
+						if mbrTemp.Mbrpartition_3.Part_status == status {
+							sizeFree = mbrTemp.Mbrpartition_3.Part_start - (mbrTemp.Mbrpartition_2.Part_start + partSize)
+							if sizeFree >= sizePart {
+								position = int(mbrTemp.Mbrpartition_2.Part_start + partSize)
+							} else {
+								if mbrTemp.Mbrpartition_4.Part_status == status {
+									sizeFree = mbrTemp.Mbrpartition_4.Part_start - (mbrTemp.Mbrpartition_3.Part_start + partSize)
+									if sizeFree >= sizePart {
+										position = int(mbrTemp.Mbrpartition_3.Part_start + partSize)
+									} else {
+										sizeFree = mbrTemp.Mbrtamaño - (mbrTemp.Mbrpartition_4.Part_start + partSize)
+										if sizeFree >= sizePart {
+											position = int(mbrTemp.Mbrpartition_4.Part_start + partSize)
+										}
+									}
+								} else {
+									if sizePart < (mbrTemp.Mbrtamaño - sizeMbr) {
+										position = int(mbrTemp.Mbrpartition_3.Part_start + partSize)
+									}
+								}
+							}
+						} else {
+							if sizePart < (mbrTemp.Mbrtamaño - sizeMbr) {
+								position = int(mbrTemp.Mbrpartition_2.Part_start + partSize)
+							}
+						}
+					}
+				} else {
+					if sizePart < (mbrTemp.Mbrtamaño - sizeMbr) {
+						position = int(mbrTemp.Mbrpartition_1.Part_start + partSize)
+					}
+				}
+			}
+		} else {
+			if sizePart < (mbrTemp.Mbrtamaño - sizeMbr) {
+				position = int(sizeMbr)
+			}
+		}
+	} else if ajuste == "M" || ajuste == "m" {
+		freeSpace := int64(0)
+
+		if mbrTemp.Mbrpartition_1.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_1.Part_start - sizeMbr
+			if sizeFree >= sizePart {
+				position = int(sizeMbr)
+				freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+			}
+		}
+
+		if mbrTemp.Mbrpartition_2.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_2.Part_start - (mbrTemp.Mbrpartition_1.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_1.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_1.Part_start + sizePart + partSize)
+					if espacioLibre < freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_1.Part_start + sizePart)
+					}
+				}
+			}
+		}
+
+		if mbrTemp.Mbrpartition_3.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_3.Part_start - (mbrTemp.Mbrpartition_2.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_2.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_2.Part_start + sizePart + partSize)
+					if espacioLibre < freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_2.Part_start + sizePart)
+					}
+				}
+			}
+		}
+
+		if mbrTemp.Mbrpartition_4.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_4.Part_start - (mbrTemp.Mbrpartition_3.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_3.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_3.Part_start + sizePart + partSize)
+					if espacioLibre < freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_3.Part_start + sizePart)
+					}
+				}
+			}
+		}
+	} else if ajuste == "W" || ajuste == "w" {
+		freeSpace := int64(0)
+
+		if mbrTemp.Mbrpartition_1.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_1.Part_start - sizeMbr
+			if sizeFree >= sizePart {
+				position = int(sizeMbr)
+				freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+			}
+		}
+
+		if mbrTemp.Mbrpartition_2.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_2.Part_start - (mbrTemp.Mbrpartition_1.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_1.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_1.Part_start + sizePart + partSize)
+					if espacioLibre > freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_1.Part_start + sizePart)
+					}
+				}
+			}
+		} else {
+			espacioLibre := sizeFree - (mbrTemp.Mbrpartition_1.Part_start + sizePart + partSize)
+			freeSpace = espacioLibre
+			position = int(mbrTemp.Mbrpartition_1.Part_start + sizePart)
+		}
+
+		if mbrTemp.Mbrpartition_3.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_3.Part_start - (mbrTemp.Mbrpartition_2.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_2.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_2.Part_start + sizePart + partSize)
+					if espacioLibre > freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_2.Part_start + sizePart)
+					}
+				}
+			}
+		} else {
+			espacioLibre := sizeFree - (mbrTemp.Mbrpartition_1.Part_start + sizePart + partSize)
+			freeSpace = espacioLibre
+			position = int(mbrTemp.Mbrpartition_2.Part_start + sizePart)
+		}
+
+		if mbrTemp.Mbrpartition_4.Part_status == status {
+			sizeFree = mbrTemp.Mbrpartition_4.Part_start - (mbrTemp.Mbrpartition_3.Part_start + sizePart)
+			if sizeFree >= sizePart {
+				if freeSpace == 0 {
+					position = int(mbrTemp.Mbrpartition_3.Part_start + sizePart)
+					freeSpace = int64(int(sizeFree) - (position + int(partSize)))
+				} else {
+					espacioLibre := sizeFree - (mbrTemp.Mbrpartition_3.Part_start + sizePart + partSize)
+					if espacioLibre > freeSpace {
+						freeSpace = espacioLibre
+						position = int(mbrTemp.Mbrpartition_3.Part_start + sizePart)
+					}
+				}
+			}
+		} else {
+			espacioLibre := sizeFree - (mbrTemp.Mbrpartition_1.Part_start + sizePart + partSize)
+			freeSpace = espacioLibre
+			position = int(mbrTemp.Mbrpartition_3.Part_start + sizePart)
+		}
+	}
+	return int64(position)
+}
+
+func sortPartitions(mbrTemp mbr) mbr {
+	var cambio partition
+	listaPartitions := []partition{mbrTemp.Mbrpartition_1, mbrTemp.Mbrpartition_2, mbrTemp.Mbrpartition_3, mbrTemp.Mbrpartition_4}
+	n := len(listaPartitions)
+
+	status := [1]byte{65}
+
+	for k := 0; k < n; k++ {
+		if listaPartitions[k].Part_status != status {
+			listaPartitions[k].Part_start = mbrTemp.Mbrtamaño
+		}
+	}
+
+	for k := 1; k < n; k++ {
+		for i := 0; i < (n - k); i++ {
+			if listaPartitions[i].Part_start > listaPartitions[i+1].Part_start {
+				cambio = listaPartitions[i]
+				listaPartitions[i] = listaPartitions[i+1]
+				listaPartitions[i+1] = cambio
+			}
+		}
+	}
+
+	mbrTemp.Mbrpartition_1 = listaPartitions[0]
+	mbrTemp.Mbrpartition_2 = listaPartitions[1]
+	mbrTemp.Mbrpartition_3 = listaPartitions[2]
+	mbrTemp.Mbrpartition_4 = listaPartitions[3]
+
+	return mbrTemp
 }
 
 func obtenerMBR(file *os.File, size int, mbrTemp mbr) mbr {
