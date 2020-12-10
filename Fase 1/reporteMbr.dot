@@ -1,0 +1,35 @@
+digraph {
+tbl [shape=plaintext
+label=<
+<table border='0' cellborder='1' color='blue' cellspacing='0'>
+	<tr><td>Nombre</td><td>Valor</td></tr>
+	<tr><td>mbr_tamaño</td><td>3072000</td></tr>
+	<tr><td>mbr_fecha_creacion</td><td>2020-12-09 11:13:11.618740199 -0600 CST m=+26.65965730</td></tr>
+	<tr><td>mbr_disk_signature</td><td>512</td></tr>
+	<tr><td>part_status_1</td><td>A</td></tr>
+	<tr><td>part_type_1</td><td>P</td></tr>
+	<tr><td>part_fit_1</td><td>W</td></tr>
+	<tr><td>part_start_1</td><td>240</td></tr>
+	<tr><td>part_size_1</td><td>307200</td></tr>
+	<tr><td>part_name_1</td><td>particion1</td></tr>
+	<tr><td>part_status_2</td><td>A</td></tr>
+	<tr><td>part_type_2</td><td>P</td></tr>
+	<tr><td>part_fit_2</td><td>W</td></tr>
+	<tr><td>part_start_2</td><td>307440</td></tr>
+	<tr><td>part_size_2</td><td>307200</td></tr>
+	<tr><td>part_name_2</td><td>particion2</td></tr>
+	<tr><td>part_status_3</td><td>A</td></tr>
+	<tr><td>part_type_3</td><td>P</td></tr>
+	<tr><td>part_fit_3</td><td>W</td></tr>
+	<tr><td>part_start_3</td><td>614640</td></tr>
+	<tr><td>part_size_3</td><td>307200</td></tr>
+	<tr><td>part_name_3</td><td>particion3</td></tr>
+	<tr><td>part_status_4</td><td> -- </td></tr>
+	<tr><td>part_type_4</td><td> -- </td></tr>
+	<tr><td>part_fit_4</td><td> -- </td></tr>
+	<tr><td>part_start_4</td><td> -- </td></tr>
+	<tr><td>part_size_4</td><td> -- </td></tr>
+	<tr><td>part_name_4</td><td> -- </td></tr>
+</table>
+>];
+}
