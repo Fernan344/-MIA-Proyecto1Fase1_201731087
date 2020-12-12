@@ -441,27 +441,24 @@ func executeComand(commandArray []string) {
 				if primerComando == "delete" && delete == true {
 					newPart := partition{}
 					mbrTemp := leerMBR(ruta)
-					status := [1]byte{65}
 
-					if mbrTemp.Mbrpartition_1.Part_status == status {
-						partName := strings.ToLower(string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]))
+					partName := strings.ToLower(string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]))
 
-						if partName == nombre {
-							mbrTemp.Mbrpartition_1 = newPart
-							mbrTemp = sortPartitions(mbrTemp)
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
-							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
+					if partName == nombre {
+						mbrTemp.Mbrpartition_1 = newPart
+						mbrTemp = sortPartitions(mbrTemp)
+						file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+						defer file.Close()
+						if err != nil {
+							log.Fatal(err)
 						}
-					} else if mbrTemp.Mbrpartition_2.Part_status == status {
+						file.Seek(0, 0)
+
+						var bufferEstudiante bytes.Buffer
+						binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+						escribirBytes(file, bufferEstudiante.Bytes())
+						defer file.Close()
+					} else {
 						partName := strings.ToLower(string(mbrTemp.Mbrpartition_2.Part_name[:clen(mbrTemp.Mbrpartition_2.Part_name[:])]))
 
 						if partName == nombre {
@@ -478,48 +475,128 @@ func executeComand(commandArray []string) {
 							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
 							escribirBytes(file, bufferEstudiante.Bytes())
 							defer file.Close()
-						}
-					} else if mbrTemp.Mbrpartition_3.Part_status == status {
-						partName := strings.ToLower(string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]))
-						if partName == nombre {
-							mbrTemp.Mbrpartition_3 = newPart
-							mbrTemp = sortPartitions(mbrTemp)
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
+						} else {
+							partName := strings.ToLower(string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]))
+							if partName == nombre {
+								mbrTemp.Mbrpartition_3 = newPart
+								mbrTemp = sortPartitions(mbrTemp)
+								file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+								defer file.Close()
+								if err != nil {
+									log.Fatal(err)
+								}
+								file.Seek(0, 0)
+
+								var bufferEstudiante bytes.Buffer
+								binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+								escribirBytes(file, bufferEstudiante.Bytes())
+								defer file.Close()
+							} else {
+								partName := strings.ToLower(string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]))
+
+								if partName == nombre {
+									mbrTemp.Mbrpartition_4 = newPart
+									mbrTemp = sortPartitions(mbrTemp)
+									file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+									defer file.Close()
+									if err != nil {
+										log.Fatal(err)
+									}
+									file.Seek(0, 0)
+
+									var bufferEstudiante bytes.Buffer
+									binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+									escribirBytes(file, bufferEstudiante.Bytes())
+									defer file.Close()
+								} else {
+									colorize(ColorRed, "Error No Existe La Particion")
+								}
 							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
 						}
-					} else if mbrTemp.Mbrpartition_4.Part_status == status {
-						partName := strings.ToLower(string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]))
-
-						if partName == nombre {
-							mbrTemp.Mbrpartition_4 = newPart
-							mbrTemp = sortPartitions(mbrTemp)
-							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
-							defer file.Close()
-							if err != nil {
-								log.Fatal(err)
-							}
-							file.Seek(0, 0)
-
-							var bufferEstudiante bytes.Buffer
-							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
-							escribirBytes(file, bufferEstudiante.Bytes())
-							defer file.Close()
-						}
-					} else {
-						colorize(ColorRed, "Error No Existe La Particion")
 					}
 
 					fmt.Println("eliminando ", nombre, "-", ruta, "-", eliminar)
 				} else if primerComando == "add" && add == true {
+					mbrTemp := leerMBR(ruta)
+					status := [1]byte{65}
+
+					if unidad == "m" || unidad == "M" {
+						agragar = agragar * 1024 * 1024
+					} else if unidad == "k" || unidad == "K" {
+						agragar = agragar * 1024
+					}
+					partName := strings.ToLower(string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]))
+					freeSize := int64(0)
+					if partName == nombre {
+						if mbrTemp.Mbrpartition_2.Part_status == status {
+							freeSize = mbrTemp.Mbrpartition_2.Part_start - (mbrTemp.Mbrpartition_1.Part_start + mbrTemp.Mbrpartition_1.Part_size)
+						} else {
+							freeSize = mbrTemp.Mbrtamaño - (mbrTemp.Mbrpartition_1.Part_start + mbrTemp.Mbrpartition_1.Part_size)
+						}
+						spaceOcuped := (mbrTemp.Mbrpartition_1.Part_size) + (int64(agragar))
+
+						if spaceOcuped > 0 && int64(agragar) <= freeSize {
+							mbrTemp.Mbrpartition_1.Part_size = (mbrTemp.Mbrpartition_1.Part_size + int64(agragar))
+							actualizarMbr(ruta, mbrTemp)
+						} else {
+							colorize(ColorRed, "Error En La Expansion/Reduccion parametro de adicion invalido")
+						}
+					} else {
+						partName := strings.ToLower(string(mbrTemp.Mbrpartition_2.Part_name[:clen(mbrTemp.Mbrpartition_2.Part_name[:])]))
+						freeSize := int64(0)
+						if partName == nombre {
+							if mbrTemp.Mbrpartition_3.Part_status == status {
+								freeSize = mbrTemp.Mbrpartition_3.Part_start - (mbrTemp.Mbrpartition_2.Part_start + mbrTemp.Mbrpartition_2.Part_size)
+							} else {
+								freeSize = mbrTemp.Mbrtamaño - (mbrTemp.Mbrpartition_2.Part_start + mbrTemp.Mbrpartition_2.Part_size)
+							}
+							spaceOcuped := (mbrTemp.Mbrpartition_2.Part_size) + (int64(agragar))
+
+							if spaceOcuped > 0 && int64(agragar) <= freeSize {
+								mbrTemp.Mbrpartition_2.Part_size = (mbrTemp.Mbrpartition_2.Part_size + int64(agragar))
+								actualizarMbr(ruta, mbrTemp)
+							} else {
+								colorize(ColorRed, "Error En La Expansion/Reduccion parametro de adicion invalido")
+							}
+
+						} else {
+							partName := strings.ToLower(string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]))
+							freeSize := int64(0)
+							if partName == nombre {
+								if mbrTemp.Mbrpartition_4.Part_status == status {
+									freeSize = mbrTemp.Mbrpartition_4.Part_start - (mbrTemp.Mbrpartition_3.Part_start + mbrTemp.Mbrpartition_3.Part_size)
+								} else {
+									freeSize = mbrTemp.Mbrtamaño - (mbrTemp.Mbrpartition_3.Part_start + mbrTemp.Mbrpartition_3.Part_size)
+								}
+								spaceOcuped := (mbrTemp.Mbrpartition_3.Part_size) + (int64(agragar))
+
+								if spaceOcuped > 0 && int64(agragar) <= freeSize {
+									mbrTemp.Mbrpartition_3.Part_size = (mbrTemp.Mbrpartition_3.Part_size + int64(agragar))
+									actualizarMbr(ruta, mbrTemp)
+								} else {
+									colorize(ColorRed, "Error En La Expansion/Reduccion parametro de adicion invalido")
+								}
+
+							} else {
+								partName := strings.ToLower(string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]))
+								freeSize := int64(0)
+								if partName == nombre {
+									freeSize = mbrTemp.Mbrtamaño - (mbrTemp.Mbrpartition_4.Part_start + mbrTemp.Mbrpartition_4.Part_size)
+									spaceOcuped := (mbrTemp.Mbrpartition_4.Part_size) + (int64(agragar))
+
+									if spaceOcuped > 0 && int64(agragar) <= freeSize {
+										mbrTemp.Mbrpartition_4.Part_size = (mbrTemp.Mbrpartition_4.Part_size + int64(agragar))
+										actualizarMbr(ruta, mbrTemp)
+									} else {
+										colorize(ColorRed, "Error En La Expansion/Reduccion parametro de adicion invalido")
+									}
+
+								} else {
+									colorize(ColorRed, "Error En La Expansion/Reduccion Particion No Encontrada")
+								}
+							}
+						}
+					}
 					fmt.Println("añadiendo ", agragar, "-", unidad, "-", nombre, "-", ruta)
 				} else if primerComando == "create" && size == true {
 					mbrTemp := leerMBR(ruta)
@@ -851,6 +928,20 @@ func executeComand(commandArray []string) {
 	} else {
 		colorize(ColorYellow, "Comentario De Script")
 	}
+}
+
+func actualizarMbr(ruta string, mbrTemp mbr) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(0, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
 }
 
 func createPath(ruta string) {
