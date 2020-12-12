@@ -127,11 +127,13 @@ func lineaDeComandos(comando string) {
 	var commandArray []string
 	if strings.Contains(comando, "\n") {
 		commandArray = strings.Split(comando, "\n")
-		commandArray = strings.Split(commandArray[0], " ")
+		commandArray = strings.Split(commandArray[0], " -")
 	} else {
-		commandArray = strings.Split(comando, " ")
+		commandArray = strings.Split(comando, " -")
 	}
-	executeComand(commandArray)
+	if commandArray[0] != "" {
+		executeComand(commandArray)
+	}
 }
 
 func executeComand(commandArray []string) {
@@ -143,23 +145,20 @@ func executeComand(commandArray []string) {
 			param := strings.ToLower(parametro)
 			caracteres := strings.Split(param, "")
 
-			if caracteres[0] == "-" && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+			if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 				paramsParts := strings.Split(parametro, "->")
 				path := paramsParts[1]
 				b, err := ioutil.ReadFile(path)
 				if err != nil {
-					err = os.MkdirAll(path, 0777)
-					if err != nil {
-						colorize(ColorRed, "Error Directorio No Encontrado")
+					colorize(ColorRed, "Error Archivo No Encontrado")
+				} else {
+					str := string(b) // convert content to a 'string'
+					lineas := strings.Split(str, "\n")
+					colorize(ColorYellow, "Corriendo Scripts")
+					for i := 0; i < len(lineas)-1; i++ {
+						colorize(ColorReset, lineas[i])
+						lineaDeComandos(lineas[i])
 					}
-
-				}
-				str := string(b) // convert content to a 'string'
-				lineas := strings.Split(str, "\n")
-				colorize(ColorYellow, "Corriendo Scripts")
-				for i := 0; i < len(lineas)-1; i++ {
-					colorize(ColorReset, lineas[i])
-					lineaDeComandos(lineas[i])
 				}
 
 			} else {
@@ -190,7 +189,7 @@ func executeComand(commandArray []string) {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
 
-				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "s" && caracteres[2] == "i" && caracteres[3] == "z" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				if caracteres[0] == "s" && caracteres[1] == "i" && caracteres[2] == "z" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					size = true
 					parametros := strings.Split(command, "->")
 					i1, err := strconv.Atoi(parametros[1])
@@ -202,7 +201,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "u" && caracteres[2] == "n" && caracteres[3] == "i" && caracteres[4] == "t" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "u" && caracteres[1] == "n" && caracteres[2] == "i" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "K" || parametros[1] == "k" || parametros[1] == "M" || parametros[1] == "m" {
 						unit = true
@@ -211,11 +210,11 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 					path = true
 					parametros := strings.Split(commandArray[i], "->")
 					ruta = parametros[1]
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
+				} else if caracteres[0] == "f" && caracteres[1] == "i" && caracteres[2] == "t" && caracteres[3] == "-" && caracteres[4] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "BF" || parametros[1] == "FF" || parametros[1] == "WF" || parametros[1] == "wf" || parametros[1] == "ff" || parametros[1] == "bf" {
 						fit = true
@@ -241,7 +240,12 @@ func executeComand(commandArray []string) {
 				file, err := os.Create(ruta)
 				defer file.Close()
 				if err != nil {
-					log.Fatal(err)
+					createPath(ruta)
+					file, err = os.Create(ruta)
+					defer file.Close()
+					if err != nil {
+						colorize(ColorRed, "Error En La Creacion De La ruta")
+					}
 				}
 
 				//se crea una variable temporal con un cero que nos ayudará a llenar nuestro archivo de ceros lógicos
@@ -299,7 +303,7 @@ func executeComand(commandArray []string) {
 			parametro := commandArray[1]
 			param := strings.ToLower(parametro)
 			caracteres := strings.Split(param, "")
-			if caracteres[0] == "-" && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+			if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 				paramsParts := strings.Split(parametro, "->")
 				path := paramsParts[1]
 
@@ -341,15 +345,15 @@ func executeComand(commandArray []string) {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
 
-				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 					path = true
 					parametros := strings.Split(commandArray[i], "->")
 					ruta = parametros[1]
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "n" && caracteres[2] == "a" && caracteres[3] == "m" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					name = true
 					parametros := strings.Split(command, "->")
 					nombre = parametros[1]
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "u" && caracteres[2] == "n" && caracteres[3] == "i" && caracteres[4] == "t" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "u" && caracteres[1] == "n" && caracteres[2] == "i" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "K" || parametros[1] == "k" || parametros[1] == "M" || parametros[1] == "m" {
 						unit = true
@@ -357,7 +361,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "t" && caracteres[2] == "y" && caracteres[3] == "p" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "t" && caracteres[1] == "y" && caracteres[2] == "p" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "p" || parametros[1] == "e" || parametros[1] == "l" {
 						tipe = true
@@ -365,7 +369,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "f" && caracteres[2] == "i" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
+				} else if caracteres[0] == "f" && caracteres[1] == "i" && caracteres[2] == "t" && caracteres[3] == "-" && caracteres[4] == ">" {
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "BF" || parametros[1] == "FF" || parametros[1] == "WF" || parametros[1] == "bf" || parametros[1] == "ff" || parametros[1] == "wf" {
 						fit = true
@@ -373,7 +377,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "d" && caracteres[2] == "e" && caracteres[3] == "l" && caracteres[4] == "e" && caracteres[5] == "t" && caracteres[6] == "e" {
+				} else if caracteres[0] == "d" && caracteres[1] == "e" && caracteres[2] == "l" && caracteres[3] == "e" && caracteres[4] == "t" && caracteres[5] == "e" {
 					delete = true
 					parametros := strings.Split(command, "->")
 					configuracionDel := strings.ToLower(parametros[1])
@@ -386,7 +390,7 @@ func executeComand(commandArray []string) {
 					} else {
 						colorize(ColorRed, "Error En  Los Parametros De Eliminacion")
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "a" && caracteres[2] == "d" && caracteres[3] == "d" {
+				} else if caracteres[0] == "a" && caracteres[1] == "d" && caracteres[2] == "d" {
 					add = true
 					parametros := strings.Split(command, "->")
 					i1, err := strconv.Atoi(parametros[1])
@@ -399,7 +403,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "s" && caracteres[2] == "i" && caracteres[3] == "z" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "s" && caracteres[1] == "i" && caracteres[2] == "z" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					size = true
 					parametros := strings.Split(command, "->")
 					i1, err := strconv.Atoi(parametros[1])
@@ -416,7 +420,8 @@ func executeComand(commandArray []string) {
 						other = true
 					}
 				} else {
-
+					colorize(ColorRed, "Error Comando Incorrecto")
+					other = true
 				}
 			}
 
@@ -434,6 +439,85 @@ func executeComand(commandArray []string) {
 				}
 
 				if primerComando == "delete" && delete == true {
+					newPart := partition{}
+					mbrTemp := leerMBR(ruta)
+					status := [1]byte{65}
+
+					if mbrTemp.Mbrpartition_1.Part_status == status {
+						partName := strings.ToLower(string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]))
+
+						if partName == nombre {
+							mbrTemp.Mbrpartition_1 = newPart
+							mbrTemp = sortPartitions(mbrTemp)
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						}
+					} else if mbrTemp.Mbrpartition_2.Part_status == status {
+						partName := strings.ToLower(string(mbrTemp.Mbrpartition_2.Part_name[:clen(mbrTemp.Mbrpartition_2.Part_name[:])]))
+
+						if partName == nombre {
+							mbrTemp.Mbrpartition_2 = newPart
+							mbrTemp = sortPartitions(mbrTemp)
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						}
+					} else if mbrTemp.Mbrpartition_3.Part_status == status {
+						partName := strings.ToLower(string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]))
+						if partName == nombre {
+							mbrTemp.Mbrpartition_3 = newPart
+							mbrTemp = sortPartitions(mbrTemp)
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						}
+					} else if mbrTemp.Mbrpartition_4.Part_status == status {
+						partName := strings.ToLower(string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]))
+
+						if partName == nombre {
+							mbrTemp.Mbrpartition_4 = newPart
+							mbrTemp = sortPartitions(mbrTemp)
+							file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+							defer file.Close()
+							if err != nil {
+								log.Fatal(err)
+							}
+							file.Seek(0, 0)
+
+							var bufferEstudiante bytes.Buffer
+							binary.Write(&bufferEstudiante, binary.BigEndian, &mbrTemp)
+							escribirBytes(file, bufferEstudiante.Bytes())
+							defer file.Close()
+						}
+					} else {
+						colorize(ColorRed, "Error No Existe La Particion")
+					}
+
 					fmt.Println("eliminando ", nombre, "-", ruta, "-", eliminar)
 				} else if primerComando == "add" && add == true {
 					fmt.Println("añadiendo ", agragar, "-", unidad, "-", nombre, "-", ruta)
@@ -603,11 +687,11 @@ func executeComand(commandArray []string) {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
 
-				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 					path = true
 					parametros := strings.Split(commandArray[i], "->")
 					ruta = parametros[1]
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "n" && caracteres[2] == "a" && caracteres[3] == "m" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					name = true
 					parametros := strings.Split(command, "->")
 					nombre = parametros[1]
@@ -678,7 +762,7 @@ func executeComand(commandArray []string) {
 			for i := 1; i < len(commandArray); i++ {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
-				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "i" && caracteres[2] == "d" && caracteres[3] == "-" && caracteres[4] == ">" {
+				if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
 					id = true
 					parametros := strings.Split(command, "->")
 					identificador = parametros[1]
@@ -705,11 +789,11 @@ func executeComand(commandArray []string) {
 			for i := 1; i < len(commandArray); i++ {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
-				if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "p" && caracteres[2] == "a" && caracteres[3] == "t" && caracteres[4] == "h" && caracteres[5] == "-" && caracteres[6] == ">" {
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
 					path = true
 					parametros := strings.Split(command, "->")
 					ruta = parametros[1]
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "n" && caracteres[2] == "a" && caracteres[3] == "m" && caracteres[4] == "e" && caracteres[5] == "-" && caracteres[6] == ">" {
+				} else if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					name = true
 					parametros := strings.Split(command, "->")
 					if parametros[1] == "mbr" || parametros[1] == "disk" {
@@ -717,7 +801,7 @@ func executeComand(commandArray []string) {
 					} else {
 						other = true
 					}
-				} else if (caracteres[0] == "-" || caracteres[0] == "–") && caracteres[1] == "i" && caracteres[2] == "d" && caracteres[3] == "-" && caracteres[4] == ">" {
+				} else if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
 					id = true
 					parametros := strings.Split(command, "->")
 					identificador = parametros[1]
@@ -766,6 +850,22 @@ func executeComand(commandArray []string) {
 		}
 	} else {
 		colorize(ColorYellow, "Comentario De Script")
+	}
+}
+
+func createPath(ruta string) {
+	str := strings.Split(ruta, "/")
+
+	path := ""
+	for i := 1; i < len(str)-1; i++ {
+		path = path + "/" + str[i]
+	}
+
+	fmt.Println(path)
+
+	err := os.MkdirAll(path, 0777)
+	if err != nil {
+		colorize(ColorRed, "Archivo No Creado")
 	}
 }
 
@@ -1369,7 +1469,13 @@ func graficarMbr(mbrTemp mbr, ruta string) {
 	path, _ := exec.LookPath("dot")
 	cmd, _ := exec.Command(path, "-Tpng", "reporteMbr.dot").Output()
 	mode := int(0777)
-	ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+	err := ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+
+	if err != nil {
+		colorize(ColorRed, "Error De Creacion De Reportes")
+		createPath(ruta)
+		ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+	}
 }
 
 func graficarDisco(mbrTemp mbr, ruta string, id string) {
@@ -1383,14 +1489,24 @@ func graficarDisco(mbrTemp mbr, ruta string, id string) {
 	str = str + "		label = \"" + id + "\";\n"
 
 	part5 := partition{}
-
 	str = graphPartition(mbrTemp.Mbrpartition_4, part5, str, disksize, 4, id)
 	str = graphPartition(mbrTemp.Mbrpartition_3, mbrTemp.Mbrpartition_4, str, disksize, 3, id)
 	str = graphPartition(mbrTemp.Mbrpartition_2, mbrTemp.Mbrpartition_3, str, disksize, 2, id)
+	str = graphPartition(mbrTemp.Mbrpartition_1, mbrTemp.Mbrpartition_2, str, disksize, 1, id)
 	status := [1]byte{65}
 
 	if mbrTemp.Mbrpartition_1.Part_status == status {
-		str = graphPartition(mbrTemp.Mbrpartition_1, mbrTemp.Mbrpartition_2, str, disksize, 1, id)
+		start := sizeMbr
+		tam := mbrTemp.Mbrpartition_1.Part_start
+		fs := tam - start
+		porcentSF3 := (float64(fs) / float64(disksize)) * 100
+
+		if fs != 0 {
+			str = str + "		subgraph cluster_cmbr_part1{\n"
+			str = str + "			label = \"" + fmt.Sprintf("%f", porcentSF3) + "%\";\n"
+			str = str + "			FREE00;\n"
+			str = str + "		}\n"
+		}
 	} else {
 		start := sizeMbr
 		fs := disksize - (start)
@@ -1422,7 +1538,13 @@ func graficarDisco(mbrTemp mbr, ruta string, id string) {
 	path, _ := exec.LookPath("dot")
 	cmd, _ := exec.Command(path, "-Tpng", "reporteDisco.dot").Output()
 	mode := int(0777)
-	ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+	err := ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+
+	if err != nil {
+		colorize(ColorRed, "Error De Creacion De Reportes")
+		createPath(ruta)
+		ioutil.WriteFile(ruta, cmd, os.FileMode(mode))
+	}
 }
 
 func graphPartition(Mbrpartition_1 partition, Mbrpartition_2 partition, str string, disksize int64, cluster int, id string) string {
