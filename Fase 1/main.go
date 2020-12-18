@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"strconv"
@@ -32,6 +33,7 @@ rep -id->vda1 -Path->/home/user/reports/reporte2.pdf -name->disk
 */
 
 var discosMounted []discos
+var session []string
 
 type discos struct {
 	id                string
@@ -72,6 +74,65 @@ type ebr struct {
 	Part_size   int64
 	Part_name   [16]byte
 	Part_next   int64
+}
+
+type superbloque struct {
+	S_filesystem_type   int64
+	S_inodes_count      int64
+	S_blocks_count      int64
+	S_free_blocks_count int64
+	S_free_inodes_count int64
+	S_mtime             [54]byte
+	S_umtime            [54]byte
+	S_mnt_count         int64
+	S_magic             int64
+	S_inode_size        int64
+	S_block_size        int64
+	S_first_ino         int64
+	S_first_blo         int64
+	S_bm_inode_start    int64
+	S_bm_block_start    int64
+	S_inode_start       int64
+	S_block_start       int64
+}
+
+type journaling struct {
+	Journal_tipo_operacion [1]byte
+	Journal_tipo           [1]byte
+	Journal_nombre         [12]byte
+	Journal_contenido      [1]byte
+	Journal_fecha          [54]byte
+	Journal_propietario    int64
+	Journal_permisos       int64
+}
+
+type inodo struct {
+	I_uid   int64
+	I_gid   int64
+	I_size  int64
+	I_atime [54]byte
+	I_ctime [54]byte
+	I_mtime [54]byte
+	I_block [15]int64
+	I_type  [1]byte
+	I_perm  int64
+}
+
+type carpeta struct {
+	B_content [4]content
+}
+
+type content struct {
+	B_name  [12]byte
+	B_inodo int32
+}
+
+type archivo struct {
+	B_content [64]byte
+}
+
+type apuntador struct {
+	B_pointers [16]int32
 }
 
 func main() {
@@ -801,6 +862,13 @@ func executeComand(commandArray []string) {
 					mounted := mountVerify(disk, mbrTemp.Mbrpartition_1)
 					if mounted == false {
 						montarParticion(ruta, disk, mbrTemp.Mbrpartition_1)
+						particion := leerParticion(ruta, mbrTemp.Mbrpartition_1.Part_start)
+						if particion == true {
+							fmt.Println("sihay")
+							sb := leerSB(ruta, mbrTemp.Mbrpartition_1.Part_start)
+							sb = updateSuperBlock(sb, "montarParticion")
+							escribirSuperBloque(ruta, sb, mbrTemp.Mbrpartition_1.Part_start)
+						}
 					} else {
 						colorize(ColorRed, "Error: La Particion Ya Esta Montada")
 					}
@@ -808,6 +876,12 @@ func executeComand(commandArray []string) {
 					mounted := mountVerify(disk, mbrTemp.Mbrpartition_2)
 					if mounted == false {
 						montarParticion(ruta, disk, mbrTemp.Mbrpartition_2)
+						particion := leerParticion(ruta, mbrTemp.Mbrpartition_2.Part_start)
+						if particion == true {
+							sb := leerSB(ruta, mbrTemp.Mbrpartition_2.Part_start)
+							sb = updateSuperBlock(sb, "montarParticion")
+							escribirSuperBloque(ruta, sb, mbrTemp.Mbrpartition_2.Part_start)
+						}
 					} else {
 						colorize(ColorRed, "Error: La Particion Ya Esta Montada")
 					}
@@ -815,6 +889,12 @@ func executeComand(commandArray []string) {
 					mounted := mountVerify(disk, mbrTemp.Mbrpartition_3)
 					if mounted == false {
 						montarParticion(ruta, disk, mbrTemp.Mbrpartition_3)
+						particion := leerParticion(ruta, mbrTemp.Mbrpartition_3.Part_start)
+						if particion == true {
+							sb := leerSB(ruta, mbrTemp.Mbrpartition_3.Part_start)
+							sb = updateSuperBlock(sb, "montarParticion")
+							escribirSuperBloque(ruta, sb, mbrTemp.Mbrpartition_3.Part_start)
+						}
 					} else {
 						colorize(ColorRed, "Error: La Particion Ya Esta Montada")
 					}
@@ -822,6 +902,12 @@ func executeComand(commandArray []string) {
 					mounted := mountVerify(disk, mbrTemp.Mbrpartition_4)
 					if mounted == false {
 						montarParticion(ruta, disk, mbrTemp.Mbrpartition_4)
+						particion := leerParticion(ruta, mbrTemp.Mbrpartition_4.Part_start)
+						if particion == true {
+							sb := leerSB(ruta, mbrTemp.Mbrpartition_4.Part_start)
+							sb = updateSuperBlock(sb, "montarParticion")
+							escribirSuperBloque(ruta, sb, mbrTemp.Mbrpartition_4.Part_start)
+						}
 					} else {
 						colorize(ColorRed, "Error: La Particion Ya Esta Montada")
 					}
@@ -847,7 +933,6 @@ func executeComand(commandArray []string) {
 					other = true
 				}
 			}
-
 			if other == false && id == true {
 				desmontarParticion(identificador)
 			} else {
@@ -922,7 +1007,694 @@ func executeComand(commandArray []string) {
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
 			}
-		} else {
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************
+			/*********************************************************************************/
+		} else if data == "mkfs" {
+			id := false
+			tipe := false
+			other := false
+			var identificador string
+			var tipo string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "t" && caracteres[1] == "y" && caracteres[2] == "p" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
+					tipe = true
+					parametros := strings.Split(command, "->")
+					if parametros[1] == "fast" || parametros[1] == "full" {
+						tipo = parametros[1]
+					} else {
+						other = true
+					}
+				} else if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+					id = true
+					parametros := strings.Split(command, "->")
+					identificador = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && id == true {
+
+				encontrado := false
+				var rutaMbr string
+				var id string
+				var particion string
+				for i := 0; i < len(discosMounted); i++ {
+					for k := 0; k < len(discosMounted[i].partitionsMounted); k++ {
+						if discosMounted[i].partitionsMounted[k].id == identificador {
+							encontrado = true
+							rutaMbr = discosMounted[i].path
+							id = discosMounted[i].id
+							particion = string(discosMounted[i].partitionsMounted[k].particion.Part_name[:clen(discosMounted[i].partitionsMounted[k].particion.Part_name[:])])
+							break
+						}
+					}
+				}
+				mbrTemp := leerMBR(rutaMbr)
+				var tamañoParticion int64
+				var inicio int64
+
+				if string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]) == particion {
+					tamañoParticion = mbrTemp.Mbrpartition_1.Part_size
+					inicio = mbrTemp.Mbrpartition_1.Part_start
+				} else if string(mbrTemp.Mbrpartition_2.Part_name[:clen(mbrTemp.Mbrpartition_2.Part_name[:])]) == particion {
+					tamañoParticion = mbrTemp.Mbrpartition_2.Part_size
+					inicio = mbrTemp.Mbrpartition_2.Part_start
+				} else if string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]) == particion {
+					tamañoParticion = mbrTemp.Mbrpartition_3.Part_size
+					inicio = mbrTemp.Mbrpartition_3.Part_start
+				} else if string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]) == particion {
+					tamañoParticion = mbrTemp.Mbrpartition_4.Part_size
+					inicio = mbrTemp.Mbrpartition_4.Part_start
+				}
+				journal := journaling{}
+				inodoX := inodo{}
+				bloqueCarpeta := carpeta{}
+				superBlock := superbloque{}
+
+				tamJournaling := int64(unsafe.Sizeof(journal))
+				tamInodo := int64(unsafe.Sizeof(inodoX))
+				tamBlock := int64(unsafe.Sizeof(bloqueCarpeta))
+				tamsuperBlock := int64(unsafe.Sizeof(superBlock))
+
+				n := (float64(tamañoParticion) - float64(tamsuperBlock)) / (float64(tamJournaling) + float64(tamInodo) + (3 * float64(tamBlock)) + 4)
+
+				totalEstructuras := math.Floor(n)
+
+				if tipe == false {
+					tipo = "full"
+				}
+				if encontrado == true {
+
+					journalingInicio := inicio + tamsuperBlock
+					inodosInicio := journalingInicio + (int64(totalEstructuras) * tamJournaling) + int64(totalEstructuras) + (3 * int64(totalEstructuras))
+					bloquesInicio := inodosInicio + (int64(totalEstructuras) * tamInodo)
+					bitmapInoIni := journalingInicio + (int64(totalEstructuras) * tamJournaling)
+					bitmapBloIni := bitmapInoIni + int64(totalEstructuras)
+
+					superBlock.S_filesystem_type = 3
+					superBlock.S_inodes_count = 2
+					superBlock.S_blocks_count = 2
+					superBlock.S_free_blocks_count = (3 * int64(totalEstructuras)) - 2
+					superBlock.S_free_inodes_count = int64(totalEstructuras) - 2
+					copy(superBlock.S_mtime[:], time.Now().String())
+					copy(superBlock.S_umtime[:], time.Now().String())
+					superBlock.S_mnt_count = 1
+					superBlock.S_magic = 512
+					superBlock.S_inode_size = tamInodo
+					superBlock.S_block_size = tamBlock
+					superBlock.S_first_ino = 2
+					superBlock.S_first_blo = 2
+					superBlock.S_bm_inode_start = bitmapInoIni
+					superBlock.S_bm_block_start = bitmapBloIni
+					superBlock.S_inode_start = inodosInicio
+					superBlock.S_block_start = bloquesInicio
+
+					superBlock = updateSuperBlock(superBlock, "fullFormat")
+
+					inodoHome := crearInodo(1, 1, 0, "0", 777)
+					inodoHome.I_block[0] = 0
+					inodoArchivos := crearInodo(1, 1, 0, "1", 777)
+					inodoArchivos.I_block[0] = 1
+
+					var arr []byte
+					arr = append(arr, 1)
+					arr = append(arr, 1)
+					arr = llenarArreglo(2, int(totalEstructuras), arr)
+
+					escribirSuperBloque(rutaMbr, superBlock, inicio)
+					escribirJournaling(rutaMbr, journal, journalingInicio)
+					escribirBitmap(rutaMbr, arr, bitmapInoIni)
+
+					var arrTemp []byte
+					arrTemp = append(arr, 1)
+					arrTemp = append(arr, 1)
+					arrTemp = llenarArreglo(2, (3 * int(totalEstructuras)), arrTemp)
+
+					escribirBitmap(rutaMbr, arrTemp, bitmapBloIni)
+					escribirInodo(rutaMbr, inodoHome, inodosInicio)
+					escribirInodo(rutaMbr, inodoArchivos, inodosInicio+tamInodo)
+
+					bloqueHome := carpeta{}
+
+					contenido := content{}
+					copy(contenido.B_name[:], ".")
+					contenido.B_inodo = 0
+					bloqueHome.B_content[0] = contenido
+
+					contenido = content{}
+					copy(contenido.B_name[:], "..")
+					contenido.B_inodo = 0
+					bloqueHome.B_content[1] = contenido
+
+					contenido = content{}
+					copy(contenido.B_name[:], "usuarios.txt")
+					contenido.B_inodo = 1
+					bloqueHome.B_content[2] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueHome.B_content[3] = contenido
+
+					escribirBloqueCarpeta(rutaMbr, bloqueHome, bloquesInicio)
+
+					bloqueArch := archivo{}
+
+					copy(bloqueArch.B_content[:], "1, G, root\n1, U, root, root, 123\n")
+
+					escribirBloqueArc(rutaMbr, bloqueArch, bloquesInicio+tamBlock)
+
+					if tipo == "full" {
+						fmt.Println("Formateo Full-", rutaMbr, "-", id)
+					} else {
+						fmt.Println("Formateo Fast-", rutaMbr, "-", id)
+					}
+				} else {
+					colorize(ColorRed, "Error La Particion No Esta Montada")
+				}
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "login" {
+			if len(session) == 0 {
+				id := false
+				user := false
+				pwd := false
+				other := false
+				var identificador string
+				var usuario string
+				var pass string
+
+				for i := 1; i < len(commandArray); i++ {
+					command := strings.ToLower(commandArray[i])
+					caracteres := strings.Split(command, "")
+					if caracteres[0] == "u" && caracteres[1] == "s" && caracteres[2] == "r" && caracteres[3] == "-" && caracteres[4] == ">" {
+						user = true
+						parametros := strings.Split(command, "->")
+						usuario = parametros[1]
+					} else if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+						id = true
+						parametros := strings.Split(command, "->")
+						identificador = parametros[1]
+					} else if caracteres[0] == "p" && caracteres[1] == "w" && caracteres[2] == "d" && caracteres[3] == "-" && caracteres[4] == ">" {
+						pwd = true
+						parametros := strings.Split(command, "->")
+						pass = parametros[1]
+					} else {
+						other = true
+					}
+				}
+				if other == false && id == true && pwd == true && user == true {
+					encontrado := false
+					var rutaMbr string
+					var ide string
+					var particion string
+					for i := 0; i < len(discosMounted); i++ {
+						for k := 0; k < len(discosMounted[i].partitionsMounted); k++ {
+							if discosMounted[i].partitionsMounted[k].id == identificador {
+								encontrado = true
+								rutaMbr = discosMounted[i].path
+								ide = discosMounted[i].partitionsMounted[k].id
+								particion = string(discosMounted[i].partitionsMounted[k].particion.Part_name[:clen(discosMounted[i].partitionsMounted[k].particion.Part_name[:])])
+								break
+							}
+						}
+					}
+					mbrTemp := leerMBR(rutaMbr)
+					var inicio int64
+					particionLogin := partition{}
+
+					if string(mbrTemp.Mbrpartition_1.Part_name[:clen(mbrTemp.Mbrpartition_1.Part_name[:])]) == particion {
+						inicio = mbrTemp.Mbrpartition_1.Part_start
+						particionLogin = mbrTemp.Mbrpartition_1
+					} else if string(mbrTemp.Mbrpartition_2.Part_name[:clen(mbrTemp.Mbrpartition_2.Part_name[:])]) == particion {
+						inicio = mbrTemp.Mbrpartition_2.Part_start
+						particionLogin = mbrTemp.Mbrpartition_2
+					} else if string(mbrTemp.Mbrpartition_3.Part_name[:clen(mbrTemp.Mbrpartition_3.Part_name[:])]) == particion {
+						inicio = mbrTemp.Mbrpartition_3.Part_start
+						particionLogin = mbrTemp.Mbrpartition_3
+					} else if string(mbrTemp.Mbrpartition_4.Part_name[:clen(mbrTemp.Mbrpartition_4.Part_name[:])]) == particion {
+						inicio = mbrTemp.Mbrpartition_4.Part_start
+						particionLogin = mbrTemp.Mbrpartition_4
+					}
+
+					if encontrado == true {
+						sb := leerSB(rutaMbr, inicio)
+						usuarios := leerArchivo("/usuarios.txt", rutaMbr, sb.S_inode_start, sb)
+						login(usuarios, particionLogin, ide, usuario, pass)
+					}
+				} else {
+					fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+				}
+			} else {
+				colorize(ColorRed, "Error Hay Una Session Iniciada")
+			}
+
+		} else if data == "logout" {
+			if len(session) == 0 {
+				colorize(ColorRed, "Error No Hay Una Session Iniciada")
+			} else {
+				var sessionLogout []string
+				session = sessionLogout
+				colorize(ColorYellow, "Session Terminada")
+			}
+		} else if data == "mkgrp" {
+			if len(session) == 0 {
+				colorize(ColorRed, "Error No Hay Una Session Iniciada")
+			} else {
+				if session[3] == "root" {
+					name := false
+					other := false
+					var nombre string
+
+					for i := 1; i < len(commandArray); i++ {
+						command := strings.ToLower(commandArray[i])
+						caracteres := strings.Split(command, "")
+						if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
+							name = true
+							parametros := strings.Split(command, "->")
+							nombre = parametros[1]
+						} else {
+							other = true
+						}
+					}
+					if other == false && name == true {
+						crearGrupo(nombre)
+					} else {
+						fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+					}
+				} else {
+					colorize(ColorRed, "Error Solo El Usuario Root Puede Ejecutar Este Comando")
+				}
+			}
+		} else if data == "mkusr" {
+			if len(session) == 0 {
+				colorize(ColorRed, "Error No Hay Una Session Iniciada")
+			} else {
+				if session[3] == "root" {
+					id := false
+					user := false
+					pwd := false
+					other := false
+					var identificador string
+					var usuario string
+					var pass string
+
+					for i := 1; i < len(commandArray); i++ {
+						command := strings.ToLower(commandArray[i])
+						caracteres := strings.Split(command, "")
+						if caracteres[0] == "u" && caracteres[1] == "s" && caracteres[2] == "r" && caracteres[3] == "-" && caracteres[4] == ">" {
+							user = true
+							parametros := strings.Split(command, "->")
+							usuario = parametros[1]
+						} else if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+							id = true
+							parametros := strings.Split(command, "->")
+							identificador = parametros[1]
+						} else if caracteres[0] == "p" && caracteres[1] == "w" && caracteres[2] == "d" && caracteres[3] == "-" && caracteres[4] == ">" {
+							pwd = true
+							parametros := strings.Split(command, "->")
+							pass = parametros[1]
+						} else {
+							other = true
+						}
+					}
+					if other == false && id == true && pwd == true && user == true {
+						crearUsuario(usuario, pass, identificador)
+					} else {
+						fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+					}
+				} else {
+					colorize(ColorRed, "Error Solo El Usuario Root Puede Ejecutar Este Comando")
+				}
+			}
+		} else if data == "chmod" {
+			path := false
+			ugo := false
+			r := false
+			other := false
+			var ruta string
+			var permisos string
+			var rec string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "r" {
+					r = true
+				} else if caracteres[0] == "u" && caracteres[1] == "g" && caracteres[2] == "o" && caracteres[3] == "-" && caracteres[4] == ">" {
+					ugo = true
+					parametros := strings.Split(command, "->")
+					permisos = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true && ugo == true {
+
+				if r == false {
+
+				}
+
+				colorize(ColorWhite, "Dando Permisos"+"-"+ruta+"-"+permisos+"-"+rec)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "mkfile" {
+			path := false
+			size := false
+			p := false
+			other := false
+			var ruta string
+			var tam string
+			var create string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "p" {
+					p = true
+				} else if caracteres[0] == "s" && caracteres[1] == "i" && caracteres[2] == "z" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
+					size = true
+					parametros := strings.Split(command, "->")
+					tam = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true {
+
+				if p == false {
+
+				}
+
+				if size == false {
+					tam = "0"
+				}
+
+				colorize(ColorWhite, "Creando Archivo"+"-"+ruta+"-"+create+"-"+tam)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "cat" {
+			file := false
+			other := false
+			var filen string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "f" && caracteres[1] == "i" && caracteres[2] == "l" && caracteres[3] == "e" {
+					if strings.Contains(command, "->") {
+						file = true
+						parametros := strings.Split(command, "->")
+						filen = parametros[1]
+					} else {
+						other = true
+					}
+				} else {
+					other = true
+				}
+			}
+			if other == false && file == true {
+				colorize(ColorWhite, "Leyendo Archivo"+"-"+filen)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "rem" {
+			path := false
+			other := false
+			var ruta string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true {
+
+				colorize(ColorWhite, "Eliminando"+"-"+ruta)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "ren" {
+			path := false
+			name := false
+			other := false
+			var ruta string
+			var nombre string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
+					name = true
+					parametros := strings.Split(command, "->")
+					nombre = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true && name == true {
+
+				colorize(ColorWhite, "Cambiando Nombre"+"-"+nombre+"-"+ruta)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "mkdir" {
+			path := false
+			p := false
+			other := false
+			var ruta string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if len(caracteres) > 1 {
+					if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+						path = true
+						parametros := strings.Split(command, "->")
+						ruta = parametros[1]
+					} else {
+						other = true
+					}
+				} else {
+					if caracteres[0] == "p" {
+						p = true
+					} else {
+						other = true
+					}
+				}
+
+			}
+			if other == false && path == true {
+
+				if p == false {
+					p = false
+				}
+				crearDirectorio(ruta, p)
+				colorize(ColorBlue, "Directorio Creado")
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "mv" {
+			path := false
+			dest := false
+			other := false
+			var ruta string
+			var destino string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "d" && caracteres[1] == "e" && caracteres[2] == "s" && caracteres[3] == "t" && caracteres[4] == "-" && caracteres[5] == ">" {
+					dest = true
+					parametros := strings.Split(command, "->")
+					destino = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true && dest == true {
+				colorize(ColorWhite, "Moviendo Archivo"+"-"+ruta+"-"+destino)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "chown" {
+			path := false
+			r := false
+			usr := false
+			other := false
+			var ruta string
+			var rec string
+			var user string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "u" && caracteres[1] == "s" && caracteres[2] == "r" && caracteres[3] == "-" && caracteres[4] == ">" {
+					usr = true
+					parametros := strings.Split(command, "->")
+					user = parametros[1]
+				} else if caracteres[0] == "r" {
+					usr = true
+					parametros := strings.Split(command, "->")
+					user = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true && usr == true {
+				if r == false {
+
+				}
+
+				colorize(ColorWhite, "Moviendo Archivo"+"-"+ruta+"-"+user+"-"+rec)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "chgrp" {
+			path := false
+			grp := false
+			other := false
+			var ruta string
+			var group string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+					path = true
+					parametros := strings.Split(command, "->")
+					ruta = parametros[1]
+				} else if caracteres[0] == "g" && caracteres[1] == "r" && caracteres[2] == "p" && caracteres[3] == "-" && caracteres[4] == ">" {
+					grp = true
+					parametros := strings.Split(command, "->")
+					group = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && path == true && grp == true {
+
+				colorize(ColorWhite, "Cambiando Archivo"+"-"+ruta+"-"+group)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "recovery" {
+			id := false
+			other := false
+			var identificador string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+					id = true
+					parametros := strings.Split(command, "->")
+					identificador = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && id == true {
+
+				colorize(ColorWhite, "Recuperando"+"-"+identificador)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else if data == "loss" {
+			id := false
+			other := false
+			var identificador string
+
+			for i := 1; i < len(commandArray); i++ {
+				command := strings.ToLower(commandArray[i])
+				caracteres := strings.Split(command, "")
+				if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+					id = true
+					parametros := strings.Split(command, "->")
+					identificador = parametros[1]
+				} else {
+					other = true
+				}
+			}
+			if other == false && id == true {
+				colorize(ColorWhite, "Perdiendo"+"-"+identificador)
+			} else {
+				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+			}
+
+		} else { //aqui los comandos
 			colorize(ColorYellow, "Comando Incorrecto")
 		}
 	} else {
@@ -1002,12 +1774,17 @@ func montarParticion(ruta string, disk discos, partitionTemp partition) {
 
 func desmontarParticion(id string) {
 	erro := true
+	particion := partition{}
+	var ruta string
 	for k := 0; k < len(discosMounted); k++ {
 		for i := 0; i < len(discosMounted[k].partitionsMounted); i++ {
 			if discosMounted[k].partitionsMounted[i].id == id {
 				erro = false
+				particion = discosMounted[k].partitionsMounted[i].particion
+				ruta = discosMounted[k].path
 				discosMounted[k].partitionsMounted[i] = discosMounted[k].partitionsMounted[len(discosMounted[k].partitionsMounted)-1]
 				discosMounted[k].partitionsMounted = discosMounted[k].partitionsMounted[:len(discosMounted[k].partitionsMounted)-1]
+
 				break
 			}
 		}
@@ -1016,6 +1793,13 @@ func desmontarParticion(id string) {
 	if erro == true {
 		colorize(ColorRed, "Error Id No Encontrado")
 	} else {
+		particionB := leerParticion(ruta, particion.Part_start)
+		if particionB == true {
+			sb := leerSB(ruta, particion.Part_start)
+			sb = updateSuperBlock(sb, "desmontarParticion")
+			escribirSuperBloque(ruta, sb, particion.Part_start)
+			colorize(ColorBlue, "Particion Desmontada SB Actualizado")
+		}
 		colorize(ColorBlue, "Particion Desmontada")
 	}
 
@@ -1718,4 +2502,894 @@ func clen(n []byte) int {
 
 func colorizefn(color Color, message string) {
 	fmt.Print(string(color), message, string(ColorReset))
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+func crearDirectorio(rutaDir string, p bool) {
+	particion, encontrado, path := buscarParticionMontada(session[5])
+
+	if encontrado == true {
+		sb := leerSB(path, particion.Part_start)
+		lugares := strings.Split(rutaDir, "/")
+		inodoRaiz := leerInodo(path, sb.S_inode_start)
+		crearCarpeta(lugares, sb, inodoRaiz, path, p, 0, 0)
+	}
+}
+
+func crearCarpeta(ruta []string, sb superbloque, inodoR inodo, rutaDisco string, p bool, padre int64, inodoPadrePos int64) {
+	bloque := carpeta{}
+	inode := inodo{}
+	var bit [1]byte
+	copy(bit[:], "0")
+
+	var newRuta []string
+	for i := 1; i < len(ruta); i++ {
+		newRuta = append(newRuta, ruta[i])
+	}
+
+	existe := false
+
+	if len(newRuta) != 0 {
+
+		for i := 0; i < len(inodoR.I_block); i++ {
+			if inodoR.I_block[i] != -1 {
+				pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+				if inodoR.I_type == bit {
+					bloque = leerBloqueCarpeta(rutaDisco, pos)
+					for k := 0; k < len(bloque.B_content); k++ {
+						if bloque.B_content[k].B_inodo != -1 {
+							if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
+								existe = true
+								iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
+								inode = leerInodo(rutaDisco, iPos)
+								crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo), int64(bloque.B_content[k].B_inodo))
+								break
+							}
+						}
+					}
+					if existe == true {
+						break
+					}
+				} else {
+					break
+				}
+			}
+		}
+		if existe == false {
+			for i := 0; i < len(inodoR.I_block); i++ {
+				if inodoR.I_block[i] != -1 {
+					pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+					if inodoR.I_type == bit {
+						creado := false
+						bloque = leerBloqueCarpeta(rutaDisco, pos)
+						for k := 0; k < len(bloque.B_content); k++ {
+							if bloque.B_content[k].B_inodo == -1 {
+								bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
+								copy(bloque.B_content[k].B_name[:], newRuta[0])
+
+								idUser, _ := strconv.Atoi(session[0])
+								inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
+
+								bitmap := leerBitMapInodos(sb, rutaDisco)
+								bitmap[sb.S_first_ino] = 1
+
+								sb.S_inodes_count = sb.S_inodes_count + 1
+								sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+								sb.S_first_ino = getFirstFree(bitmap)
+
+								particion, _, _ := buscarParticionMontada(session[5])
+
+								posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
+
+								bloqueHome := carpeta{}
+
+								contenido := content{}
+								copy(contenido.B_name[:], ".")
+								contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
+								bloqueHome.B_content[0] = contenido
+
+								contenido = content{}
+								copy(contenido.B_name[:], "..")
+								contenido.B_inodo = int32(padre)
+								bloqueHome.B_content[1] = contenido
+
+								contenido = content{}
+								contenido.B_inodo = -1
+								bloqueHome.B_content[2] = contenido
+
+								contenido = content{}
+								contenido.B_inodo = -1
+								bloqueHome.B_content[3] = contenido
+
+								inodoNew.I_block[0] = sb.S_first_blo
+
+								bitmapB := leerBitMapBloques(sb, rutaDisco)
+								bitmapB[sb.S_first_blo] = 1
+
+								sb.S_blocks_count = sb.S_blocks_count + 1
+								sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+								sb.S_first_blo = getFirstFree(bitmapB)
+
+								if p == true {
+									bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+									escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+									escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+									escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+									escribirInodo(rutaDisco, inodoNew, posI)
+									escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+									escribirBloqueCarpeta(rutaDisco, bloque, pos)
+									crearCarpeta(newRuta, sb, inodoNew, rutaDisco, p, int64(bloque.B_content[k].B_inodo), int64(bloque.B_content[k].B_inodo))
+									creado = true
+								} else {
+									if len(newRuta) == 1 {
+										bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+										escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+										escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+										escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+										escribirInodo(rutaDisco, inodoNew, posI)
+										escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+										escribirBloqueCarpeta(rutaDisco, bloque, pos)
+										creado = true
+									} else {
+										colorize(ColorRed, "Error En La Escritura")
+									}
+								}
+								break
+							}
+						}
+						if creado == true {
+							break
+						}
+					} else {
+						break
+					}
+				} else {
+					inodoR.I_block[i] = sb.S_first_blo
+					bloqueHome := carpeta{}
+					contenido := content{}
+					copy(contenido.B_name[:], newRuta[0])
+					contenido.B_inodo = int32(sb.S_first_ino)
+					bloqueHome.B_content[0] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueHome.B_content[1] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueHome.B_content[2] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueHome.B_content[3] = contenido
+
+					bitmapB := leerBitMapBloques(sb, rutaDisco)
+					bitmapB[sb.S_first_blo] = 1
+
+					sb.S_blocks_count = sb.S_blocks_count + 1
+					sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+					sb.S_first_blo = getFirstFree(bitmapB)
+
+					inodoPadrePosition := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * inodoPadrePos)
+					bloqueNuevoPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * inodoR.I_block[i])
+
+					idUser, _ := strconv.Atoi(session[0])
+					inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
+
+					bitmap := leerBitMapInodos(sb, rutaDisco)
+					bitmap[sb.S_first_ino] = 1
+
+					particion, _, _ := buscarParticionMontada(session[5])
+
+					sb.S_inodes_count = sb.S_inodes_count + 1
+					sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+					sb.S_first_ino = getFirstFree(bitmap)
+
+					posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[i].B_inodo))
+
+					bloqueCreate := carpeta{}
+
+					contenido = content{}
+					copy(contenido.B_name[:], ".")
+					contenido.B_inodo = int32(bloqueHome.B_content[0].B_inodo)
+					bloqueCreate.B_content[0] = contenido
+
+					contenido = content{}
+					copy(contenido.B_name[:], "..")
+					contenido.B_inodo = int32(padre)
+					bloqueCreate.B_content[1] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueCreate.B_content[2] = contenido
+
+					contenido = content{}
+					contenido.B_inodo = -1
+					bloqueCreate.B_content[3] = contenido
+
+					inodoNew.I_block[0] = sb.S_first_blo
+					bitmapB[sb.S_first_blo] = 1
+					sb.S_blocks_count = sb.S_blocks_count + 1
+					sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+					sb.S_first_blo = getFirstFree(bitmapB)
+
+					bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueCreate)) * int64(sb.S_first_blo))
+
+					if p == true {
+						escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+						escribirBloqueCarpeta(rutaDisco, bloqueHome, bloqueNuevoPos)
+						escribirInodo(rutaDisco, inodoR, inodoPadrePosition)
+						escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+						escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+						escribirInodo(rutaDisco, inodoNew, posI)
+						escribirBloqueCarpeta(rutaDisco, bloqueCreate, bPos)
+						crearCarpeta(newRuta, sb, inodoNew, rutaDisco, p, int64(bloqueHome.B_content[0].B_inodo), posI)
+					} else {
+						if len(newRuta) == 1 {
+							escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+							escribirBloqueCarpeta(rutaDisco, bloqueHome, bloqueNuevoPos)
+							escribirInodo(rutaDisco, inodoR, inodoPadrePosition)
+							escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+							escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+							escribirInodo(rutaDisco, inodoNew, posI)
+							escribirBloqueCarpeta(rutaDisco, bloqueCreate, bPos)
+						} else {
+							colorize(ColorRed, "Error En La Escritura")
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+}
+
+func getIdGroup(rutaDisco string, sb superbloque) int64 {
+	users := leerArchivo("/usuarios.txt", rutaDisco, sb.S_inode_start, sb)
+	registros := strings.Split(users, "\n")
+	id := -1
+	for i := 0; i < len(registros)-1; i++ {
+		data := strings.Split(registros[i], ", ")
+		if data[1] == "G" {
+			if data[2] == session[3] {
+				id, _ = strconv.Atoi(data[0])
+			}
+		}
+	}
+	return int64(id)
+}
+
+func generarBloque() {
+	bloqueHome := carpeta{}
+
+	contenido := content{}
+	copy(contenido.B_name[:], ".")
+	contenido.B_inodo = 0
+	bloqueHome.B_content[0] = contenido
+
+	contenido = content{}
+	copy(contenido.B_name[:], "..")
+	contenido.B_inodo = 0
+	bloqueHome.B_content[1] = contenido
+
+	contenido = content{}
+	copy(contenido.B_name[:], "usuarios.txt")
+	contenido.B_inodo = 1
+	bloqueHome.B_content[2] = contenido
+
+	contenido = content{}
+	contenido.B_inodo = -1
+	bloqueHome.B_content[3] = contenido
+}
+
+func crearUsuario(name string, pass string, group string) {
+	encontrado := false
+	var rutaMbr string
+	var inicio int64
+	for i := 0; i < len(discosMounted); i++ {
+		for k := 0; k < len(discosMounted[i].partitionsMounted); k++ {
+			if discosMounted[i].partitionsMounted[k].id == session[5] {
+				encontrado = true
+				rutaMbr = discosMounted[i].path
+				inicio = discosMounted[i].partitionsMounted[k].particion.Part_start
+				break
+			}
+		}
+	}
+	if encontrado == true {
+		sb := leerSB(rutaMbr, inicio)
+		archivo := leerArchivo("/usuarios.txt", rutaMbr, sb.S_inode_start, sb)
+		registros := strings.Split(archivo, "\n")
+		registrado := false
+		var id string
+
+		grupo := false
+		idG := ""
+		for i := 0; i < len(registros)-1; i++ {
+			data := strings.Split(registros[i], ", ")
+			if data[1] == "U" {
+				if data[3] == name {
+					registrado = true
+				}
+				id = data[0]
+			} else if data[1] == "G" {
+				if data[0] == group {
+					grupo = true
+					idG = data[2]
+				}
+			}
+		}
+
+		if registrado == false && grupo == true {
+			convert, _ := strconv.Atoi(id)
+			newId := convert + 1
+			archivo = archivo + strconv.Itoa(newId) + ", U" + ", " + idG + ", " + name + ", " + pass + "\n"
+			escribirEnUsuariosTxt(archivo, sb, rutaMbr)
+		} else {
+			colorize(ColorRed, "Error El Usuario Esta Registrado O el Grupo No Existe")
+		}
+	}
+}
+
+func crearGrupo(name string) {
+	encontrado := false
+	var rutaMbr string
+	var inicio int64
+	for i := 0; i < len(discosMounted); i++ {
+		for k := 0; k < len(discosMounted[i].partitionsMounted); k++ {
+			if discosMounted[i].partitionsMounted[k].id == session[5] {
+				encontrado = true
+				rutaMbr = discosMounted[i].path
+				inicio = discosMounted[i].partitionsMounted[k].particion.Part_start
+				break
+			}
+		}
+	}
+	if encontrado == true {
+		sb := leerSB(rutaMbr, inicio)
+		archivo := leerArchivo("/usuarios.txt", rutaMbr, sb.S_inode_start, sb)
+		registros := strings.Split(archivo, "\n")
+		registrado := false
+		var id string
+		for i := 0; i < len(registros)-1; i++ {
+			data := strings.Split(registros[i], ", ")
+			if data[1] == "G" {
+				if data[2] == name {
+					registrado = true
+				}
+				id = data[0]
+			}
+		}
+		if registrado == false {
+			convert, _ := strconv.Atoi(id)
+			newId := convert + 1
+			archivo = archivo + strconv.Itoa(newId) + ", G" + ", " + name + "\n"
+			escribirEnUsuariosTxt(archivo, sb, rutaMbr)
+		}
+	}
+}
+
+func escribirEnUsuariosTxt(archivos string, sb superbloque, ruta string) {
+	inodoI := inodo{}
+	bloque := archivo{}
+	posI := sb.S_inode_start + (1 * int64(unsafe.Sizeof(inodoI)))
+	inodoUsuarios := leerInodo(ruta, posI)
+	arreglos := separarCaracteresBA(archivos)
+
+	for i := 0; i < len(arreglos); i++ {
+		if inodoUsuarios.I_block[i] != -1 {
+			pos := sb.S_block_start + (inodoUsuarios.I_block[i] * int64(unsafe.Sizeof(bloque)))
+			bloque := archivo{}
+			bloque.B_content = arreglos[i]
+			escribirBloqueArc(ruta, bloque, pos)
+		} else {
+			if i != 14 && i != 13 {
+				bloqueArch := archivo{}
+				bloqueArch.B_content = arreglos[i]
+				inodoUsuarios.I_block[i] = sb.S_first_blo
+				fmt.Println(inodoUsuarios.I_block[i])
+				pos := sb.S_block_start + (inodoUsuarios.I_block[i] * int64(unsafe.Sizeof(bloque)))
+
+				bitmap := leerBitMapBloques(sb, ruta)
+				bitmap[sb.S_first_blo] = 1
+
+				sb.S_blocks_count = sb.S_blocks_count + 1
+				sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+				sb.S_first_blo = getFirstFree(bitmap)
+				particion, encontrado, _ := buscarParticionMontada(session[5])
+
+				copy(inodoUsuarios.I_mtime[:], time.Now().String())
+				if encontrado == true {
+					escribirBloqueArc(ruta, bloqueArch, pos)
+					escribirBitmap(ruta, bitmap, sb.S_bm_block_start)
+					escribirSuperBloque(ruta, sb, particion.Part_start)
+					escribirInodo(ruta, inodoUsuarios, posI)
+				}
+			}
+		}
+	}
+}
+
+func buscarParticionMontada(identificador string) (partition, bool, string) {
+	var particion partition
+	encontrado := false
+	var path string
+	for i := 0; i < len(discosMounted); i++ {
+		for k := 0; k < len(discosMounted[i].partitionsMounted); k++ {
+			if discosMounted[i].partitionsMounted[k].id == identificador {
+				particion = discosMounted[i].partitionsMounted[k].particion
+				encontrado = true
+				path = discosMounted[i].path
+				break
+			}
+		}
+	}
+	return particion, encontrado, path
+}
+
+func getFirstFree(bitmap []byte) int64 {
+	pos := -1
+	for i := 0; i < len(bitmap); i++ {
+		if bitmap[i] == 0 {
+			pos = i
+			break
+		}
+	}
+	return int64(pos)
+}
+
+func leerBitMapBloques(sb superbloque, path string) []byte {
+	tamaño := (sb.S_blocks_count + sb.S_free_blocks_count)
+
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	file.Seek(sb.S_bm_block_start, 0)
+
+	bitmap := leerBytes(file, int(tamaño))
+	return bitmap
+}
+
+func leerBitMapInodos(sb superbloque, path string) []byte {
+	tamaño := (sb.S_inodes_count + sb.S_free_inodes_count)
+
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	file.Seek(sb.S_bm_inode_start, 0)
+
+	bitmap := leerBytes(file, int(tamaño))
+	return bitmap
+}
+
+func separarCaracteresBA(archivo string) [][64]byte {
+	arregloCompleto := []byte(archivo)
+
+	var arreglos [][64]byte
+	var array [64]byte
+
+	count := 0
+	for i := 0; i < len(arregloCompleto); i++ {
+		array[count] = arregloCompleto[i]
+		count++
+		if count == 64 {
+			arreglos = append(arreglos, array)
+			var arrayTemp [64]byte
+			array = arrayTemp
+			count = 0
+		}
+	}
+	if len(array) != 0 {
+		arreglos = append(arreglos, array)
+	}
+
+	return arreglos
+}
+
+func login(users string, particion partition, id string, usuario string, pass string) {
+	registros := strings.Split(users, "\n")
+	var uyg []string
+	for i := 0; i < len(registros)-1; i++ {
+		data := strings.Split(registros[i], ", ")
+		if data[1] == "U" {
+			if data[3] == usuario && data[4] == pass {
+				uyg = data
+			}
+		}
+	}
+
+	if len(uyg) == 0 {
+		colorize(ColorRed, "Error En Las Credenciales")
+	} else {
+		uyg = append(uyg, id)
+		session = uyg
+		colorizefn(ColorWhite, "Sesion Iniciada Como ")
+		colorize(ColorBlue, usuario)
+		fmt.Println(users)
+	}
+}
+
+func leerArchivo(ruta string, rutaDisco string, pos int64, sb superbloque) string {
+	var archivo string
+	lugares := strings.Split(ruta, "/")
+
+	inodoRaiz := leerInodo(rutaDisco, pos)
+	archivo = leerInodos(lugares, rutaDisco, pos, sb, inodoRaiz)
+	return archivo
+}
+
+func leerInodos(ruta []string, rutaDisco string, pos int64, sb superbloque, inodoR inodo) string {
+	var archivo string
+	bloque := carpeta{}
+	var bit [1]byte
+	copy(bit[:], "0")
+
+	var newRuta []string
+
+	for i := 1; i < len(ruta); i++ {
+		newRuta = append(newRuta, ruta[i])
+	}
+
+	for i := 0; i < len(inodoR.I_block); i++ {
+		if inodoR.I_block[i] != -1 {
+			pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+			if inodoR.I_type == bit {
+				bloqueCarpeta := leerBloqueCarpeta(rutaDisco, pos)
+				archivo = archivo + leerBloqueCarpetas(newRuta, rutaDisco, pos, sb, bloqueCarpeta)
+			} else {
+				bloqueArchivo := leerBloqueArchivo(rutaDisco, pos)
+				archivo = archivo + leerBloqueArchivos(newRuta, rutaDisco, pos, sb, bloqueArchivo)
+			}
+		}
+	}
+	return archivo
+}
+
+func leerBloqueCarpetas(ruta []string, rutaDisco string, pos int64, sb superbloque, bloque carpeta) string {
+
+	var archivo string
+	inodoI := inodo{}
+
+	var newRuta []string
+
+	for i := 1; i < len(ruta); i++ {
+		newRuta = append(newRuta, ruta[i])
+	}
+
+	for i := 0; i < len(bloque.B_content); i++ {
+		if bloque.B_content[i].B_inodo != -1 {
+			if string(bloque.B_content[i].B_name[:clen(bloque.B_content[i].B_name[:])]) == ruta[0] {
+				pos = sb.S_inode_start + (int64(unsafe.Sizeof(inodoI)) * int64(bloque.B_content[i].B_inodo))
+				inodoI = leerInodo(rutaDisco, pos)
+				archivo = archivo + leerInodos(newRuta, rutaDisco, pos, sb, inodoI)
+			}
+		}
+	}
+
+	return archivo
+}
+
+func leerBloqueArchivos(ruta []string, rutaDisco string, pos int64, sb superbloque, bloque archivo) string {
+	archivo := string(bloque.B_content[:clen(bloque.B_content[:])])
+	return archivo
+}
+
+func escribirSuperBloque(ruta string, list superbloque, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &list)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
+}
+
+func escribirJournaling(ruta string, list journaling, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &list)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
+}
+
+func escribirBitmap(ruta string, list []byte, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	escribirBytes(file, list)
+	defer file.Close()
+}
+
+func escribirInodo(ruta string, list inodo, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &list)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
+}
+
+func escribirBloqueCarpeta(ruta string, list carpeta, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &list)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
+}
+
+func escribirBloqueArc(ruta string, list archivo, pos int64) {
+	file, err := os.OpenFile(ruta, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	file.Seek(pos, 0)
+
+	var bufferEstudiante bytes.Buffer
+	binary.Write(&bufferEstudiante, binary.BigEndian, &list)
+	escribirBytes(file, bufferEstudiante.Bytes())
+	defer file.Close()
+}
+
+func updateSuperBlock(superBloqueTem superbloque, tipo string) superbloque {
+	if tipo == "montarParticion" {
+		superBloqueTem.S_mnt_count = superBloqueTem.S_mnt_count + 1
+		copy(superBloqueTem.S_mtime[:], time.Now().String())
+	} else if tipo == "desmontarParticion" {
+		copy(superBloqueTem.S_mtime[:], time.Now().String())
+	}
+	return superBloqueTem
+}
+
+func llenarArreglo(inicio int, fin int, arreglo []byte) []byte {
+
+	for i := inicio; i < fin; i++ {
+		arreglo = append(arreglo, 0)
+	}
+
+	return arreglo
+}
+
+func crearInodo(idUser int64, idGroup int64, archSize int64, tipo string, permisos int64) inodo {
+	inodoTemp := inodo{}
+	inodoTemp.I_uid = idUser
+	inodoTemp.I_gid = idGroup
+	inodoTemp.I_size = archSize
+	copy(inodoTemp.I_atime[:], time.Now().String())
+	copy(inodoTemp.I_ctime[:], time.Now().String())
+	copy(inodoTemp.I_mtime[:], time.Now().String())
+
+	for i := 0; i < len(inodoTemp.I_block); i++ {
+		inodoTemp.I_block[i] = -1
+	}
+
+	copy(inodoTemp.I_type[:], tipo)
+	inodoTemp.I_perm = permisos
+	return inodoTemp
+}
+
+func leerSB(path string, pos int64) superbloque {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := superbloque{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(pos, 0)
+	mbrTemp = obtenerSB(file, size, mbrTemp)
+
+	return mbrTemp
+}
+
+func obtenerSB(file *os.File, size int, mbrTemp superbloque) superbloque {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+	buffer := bytes.NewBuffer(data)
+
+	//Decodificamos y guardamos en la variable estudianteTemporal
+	err := binary.Read(buffer, binary.BigEndian, &mbrTemp)
+	if err != nil {
+		log.Fatal("binary.Read failed ", err)
+	}
+
+	//retornamos el estudiante
+	return mbrTemp
+}
+
+func leerInodo(path string, pos int64) inodo {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := inodo{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(pos, 0)
+	mbrTemp = obtenerInodo(file, size, mbrTemp)
+
+	return mbrTemp
+}
+
+func obtenerInodo(file *os.File, size int, mbrTemp inodo) inodo {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+	buffer := bytes.NewBuffer(data)
+
+	//Decodificamos y guardamos en la variable estudianteTemporal
+	err := binary.Read(buffer, binary.BigEndian, &mbrTemp)
+	if err != nil {
+		log.Fatal("binary.Read failed ", err)
+	}
+
+	//retornamos el estudiante
+	return mbrTemp
+}
+
+func leerBloqueCarpeta(path string, pos int64) carpeta {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := carpeta{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(pos, 0)
+	mbrTemp = obtenerBloqueCarpeta(file, size, mbrTemp)
+
+	return mbrTemp
+}
+
+func obtenerBloqueCarpeta(file *os.File, size int, mbrTemp carpeta) carpeta {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+	buffer := bytes.NewBuffer(data)
+
+	//Decodificamos y guardamos en la variable estudianteTemporal
+	err := binary.Read(buffer, binary.BigEndian, &mbrTemp)
+	if err != nil {
+		log.Fatal("binary.Read failed ", err)
+	}
+
+	//retornamos el estudiante
+	return mbrTemp
+}
+
+func leerBloqueArchivo(path string, pos int64) archivo {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := archivo{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(pos, 0)
+	mbrTemp = obtenerBloqueArchivo(file, size, mbrTemp)
+
+	return mbrTemp
+}
+
+func obtenerBloqueArchivo(file *os.File, size int, mbrTemp archivo) archivo {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+	buffer := bytes.NewBuffer(data)
+
+	//Decodificamos y guardamos en la variable estudianteTemporal
+	err := binary.Read(buffer, binary.BigEndian, &mbrTemp)
+	if err != nil {
+		log.Fatal("binary.Read failed ", err)
+	}
+
+	//retornamos el estudiante
+	return mbrTemp
+}
+
+func leerParticion(path string, pos int64) bool {
+	file, err := os.Open(path)
+	defer file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mbrTemp := partition{}
+
+	var size int = int(unsafe.Sizeof(mbrTemp))
+	file.Seek(pos, 0)
+	mbrTempbyte := obtenerParticion(file, size)
+	fmt.Println(mbrTempbyte)
+
+	datos := false
+	for i := 0; i < len(mbrTempbyte); i++ {
+		if mbrTempbyte[i] != 0 {
+			datos = true
+		}
+	}
+
+	return datos
+}
+
+func obtenerParticion(file *os.File, size int) []byte {
+	//Lee la cantidad de <size> bytes del archivo
+	data := leerBytes(file, size)
+
+	//Convierte la data en un buffer,necesario para
+	//decodificar binario
+
+	//retornamos el estudiante
+	return data
 }
