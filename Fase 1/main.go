@@ -942,11 +942,13 @@ func executeComand(commandArray []string) {
 			id := false
 			name := false
 			path := false
+			route := false
 			other := false
 
 			var identificador string
 			var nombre string
 			var ruta string
+			var routa string
 
 			for i := 1; i < len(commandArray); i++ {
 				command := strings.ToLower(commandArray[i])
@@ -958,7 +960,7 @@ func executeComand(commandArray []string) {
 				} else if caracteres[0] == "n" && caracteres[1] == "a" && caracteres[2] == "m" && caracteres[3] == "e" && caracteres[4] == "-" && caracteres[5] == ">" {
 					name = true
 					parametros := strings.Split(command, "->")
-					if parametros[1] == "mbr" || parametros[1] == "disk" || parametros[1] == "inode" || parametros[1] == "block" || parametros[1] == "bm_inode" {
+					if parametros[1] == "mbr" || parametros[1] == "file" || parametros[1] == "sb" || parametros[1] == "disk" || parametros[1] == "inode" || parametros[1] == "block" || parametros[1] == "bm_inode" || parametros[1] == "bm_block" || parametros[1] == "tree" {
 						nombre = parametros[1]
 					} else {
 						other = true
@@ -967,6 +969,11 @@ func executeComand(commandArray []string) {
 					id = true
 					parametros := strings.Split(command, "->")
 					identificador = parametros[1]
+				} else if caracteres[0] == "r" && caracteres[1] == "u" && caracteres[2] == "t" && caracteres[3] == "a" && caracteres[4] == "-" && caracteres[5] == ">" {
+					route = true
+					parametros := strings.Split(command, "->")
+					routa = parametros[1]
+
 				} else {
 					other = true
 				}
@@ -1024,13 +1031,43 @@ func executeComand(commandArray []string) {
 				} else if nombre == "bm_inode" {
 					if encontrado == true {
 						sb := leerSB(rutaMbr, particion.Part_start)
-						reporteDeBipmapDeInodos(sb, ruta, rutaMbr)
+						inodos := leerBitMapInodos(sb, rutaMbr)
+						reporteDeBipmapDeInodos(sb, ruta, rutaMbr, inodos)
 						fmt.Println("reporte de BitMap Inodos ", identificador, "-", nombre, "-", ruta)
 					} else {
 						colorize(ColorRed, "Error: La particion no esta montada")
 					}
+				} else if nombre == "bm_block" {
+					if encontrado == true {
+						sb := leerSB(rutaMbr, particion.Part_start)
+						bloques := leerBitMapBloques(sb, rutaMbr)
+						reporteDeBipmapDeInodos(sb, ruta, rutaMbr, bloques)
+						fmt.Println("reporte de BitMap Bloques ", identificador, "-", nombre, "-", ruta)
+					} else {
+						colorize(ColorRed, "Error: La particion no esta montada")
+					}
+				} else if nombre == "tree" {
+					if encontrado == true {
+						graficarArbol(identificador, ruta)
+						fmt.Println("reporte de arbol ", identificador, "-", nombre, "-", ruta)
+					} else {
+						colorize(ColorRed, "Error: La particion no esta montada")
+					}
+				} else if nombre == "sb" {
+					if encontrado == true {
+						graficarSb(identificador, ruta)
+						fmt.Println("reporte de arbol ", identificador, "-", nombre, "-", ruta)
+					} else {
+						colorize(ColorRed, "Error: La particion no esta montada")
+					}
+				} else if nombre == "file" {
+					if route == true {
+						reporteFile(routa, identificador, ruta)
+						fmt.Println("reporte de arbol ", identificador, "-", nombre, "-", routa)
+					} else {
+						colorize(ColorRed, "Error: La particion no esta montada")
+					}
 				}
-
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
 			}
@@ -2578,8 +2615,187 @@ func colorizefn(color Color, message string) {
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-func reporteDeBipmapDeInodos(sb superbloque, pathG string, rutaDisco string) {
-	inodos := leerBitMapInodos(sb, rutaDisco)
+func reporteFile(rutaFile string, identificador string, pathG string) {
+	particion, _, pathD := buscarParticionMontada(identificador)
+	sb := leerSB(pathD, particion.Part_start)
+	lugares := strings.Split(rutaFile, "/")
+
+	str := leerArchivo(rutaFile, pathD, sb.S_inode_start, sb)
+
+	str = lugares[len(lugares)-1] + "\n\n\n" + str
+
+	b := []byte(str)
+	err := ioutil.WriteFile(pathG, b, 0777)
+	if err != nil {
+		err = nil
+		createPath(pathG)
+		err = ioutil.WriteFile(pathG, b, 0777)
+		if err != nil {
+			colorize(ColorRed, "Error En La Creacion Del Archivo")
+		}
+	}
+}
+
+func graficarSb(identificador string, pathG string) {
+	particion, _, pathD := buscarParticionMontada(identificador)
+	sb := leerSB(pathD, particion.Part_start)
+
+	str := "digraph H {\n"
+	str = str + "	graph [\n"
+	str = str + "		rankdir = \"LR\"\n"
+	str = str + "	];\n"
+
+	str = str + "sb_0 [\n"
+	str = str + "	 shape=plaintext\n"
+	str = str + "	 label=<\n"
+	str = str + "	   <table border='1' cellborder='1'>\n"
+	str = str + "		 <tr><td colspan=\"2\"> SuperBloque </td></tr>\n"
+	str = str + "		 <tr><td>s_inodes_count</td><td>" + strconv.Itoa(int(sb.S_inodes_count)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_blocks_count</td><td>" + strconv.Itoa(int(sb.S_blocks_count)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_free_blocks_count</td><td>" + strconv.Itoa(int(sb.S_free_blocks_count)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_free_inodes_count</td><td>" + strconv.Itoa(int(sb.S_free_inodes_count)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_mtime</td><td>" + string(sb.S_mtime[:clen(sb.S_mtime[:])]) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_umtime</td><td>" + string(sb.S_umtime[:clen(sb.S_umtime[:])]) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_mnt_count</td><td>" + strconv.Itoa(int(sb.S_mnt_count)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_magic</td><td>" + strconv.Itoa(int(sb.S_magic)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_inode_size</td><td>" + strconv.Itoa(int(sb.S_inode_size)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_block_size</td><td>" + strconv.Itoa(int(sb.S_block_size)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_first_ino</td><td>" + strconv.Itoa(int(sb.S_first_ino)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_first_blo</td><td>" + strconv.Itoa(int(sb.S_first_blo)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_bm_inode_start</td><td>" + strconv.Itoa(int(sb.S_bm_inode_start)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_bm_block_start</td><td>" + strconv.Itoa(int(sb.S_bm_block_start)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_inode_start</td><td>" + strconv.Itoa(int(sb.S_inode_start)) + "</td></tr>\n"
+	str = str + "		 <tr><td>s_block_start</td><td>" + strconv.Itoa(int(sb.S_block_start)) + "</td></tr>\n"
+	str = str + "	   </table>\n"
+	str = str + "	>];\n"
+	str = str + "	}"
+	b := []byte(str)
+	erro := ioutil.WriteFile("reporteSB.dot", b, 0664)
+	if erro != nil {
+		log.Fatal(erro)
+	}
+
+	path, _ := exec.LookPath("dot")
+	cmd, _ := exec.Command(path, "-Tpdf", "reporteSB.dot").Output()
+	mode := int(0777)
+	err := ioutil.WriteFile(pathG, cmd, os.FileMode(mode))
+
+	if err != nil {
+		colorize(ColorRed, "Error De Creacion De Reportes")
+		createPath(pathG)
+		ioutil.WriteFile(pathG, cmd, os.FileMode(mode))
+	}
+}
+
+func graficarArbol(id string, pathG string) {
+	particion, _, pathD := buscarParticionMontada(id)
+	sb := leerSB(pathD, particion.Part_start)
+	inode := leerInodo(pathD, sb.S_inode_start)
+
+	str := "digraph H {\n"
+	str = str + "	graph [\n"
+	str = str + "		rankdir = \"LR\"\n"
+	str = str + "	];\n"
+
+	str = str + reporteDeArbol(inode, sb, pathD, 0, -1)
+
+	str = str + "}"
+
+	fmt.Println(str)
+
+	b := []byte(str)
+	erro := ioutil.WriteFile("reporteArbol.dot", b, 0664)
+	if erro != nil {
+		log.Fatal(erro)
+	}
+
+	path, _ := exec.LookPath("dot")
+	cmd, _ := exec.Command(path, "-Tpdf", "reporteArbol.dot").Output()
+	mode := int(0777)
+	err := ioutil.WriteFile(pathG, cmd, os.FileMode(mode))
+
+	if err != nil {
+		colorize(ColorRed, "Error De Creacion De Reportes")
+		createPath(pathG)
+		ioutil.WriteFile(pathG, cmd, os.FileMode(mode))
+	}
+}
+
+func reporteDeArbol(inodoR inodo, sb superbloque, rutaDisco string, numIn int32, bloqueAnterior int64) string {
+	str := ""
+	strBloque := ""
+	strNewNodo := ""
+
+	bloqueCarpeta := carpeta{}
+	bloqueArchivo := archivo{}
+
+	var bit [1]byte
+	copy(bit[:], "0")
+
+	str = str + "inodo_" + strconv.Itoa(int(numIn)) + " [\n"
+	str = str + "	 shape=plaintext\n"
+	str = str + "	 label=<\n"
+	str = str + "	   <table border='1' cellborder='1'>\n"
+	str = str + "		 <tr><td colspan=\"2\"> inodo" + strconv.Itoa(int(numIn)) + "</td></tr>\n"
+	str = str + "		 <tr><td>I_uid</td><td>" + strconv.Itoa(int(inodoR.I_uid)) + "</td></tr>\n"
+	str = str + "		 <tr><td>I_gid</td><td>" + strconv.Itoa(int(inodoR.I_gid)) + "</td></tr>\n"
+	str = str + "		 <tr><td>I_type</td><td>" + string(inodoR.I_type[:clen(inodoR.I_type[:])]) + "</td></tr>\n"
+
+	for i := 0; i < len(inodoR.I_block); i++ {
+		str = str + "		 <tr><td>bloque" + strconv.Itoa(int(inodoR.I_block[i])) + "</td><td port='port_" + strconv.Itoa(int(inodoR.I_block[i])) + "'>" + strconv.Itoa(int(inodoR.I_block[i])) + "</td></tr>\n"
+		if inodoR.I_block[i] != -1 {
+			pos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueArchivo)) * inodoR.I_block[i])
+			if inodoR.I_type == bit {
+				bloqueCarpeta = leerBloqueCarpeta(rutaDisco, pos)
+				strBloque = strBloque + "bloque_" + strconv.Itoa(int(inodoR.I_block[i])) + " [\n"
+				strBloque = strBloque + "	 shape=plaintext\n"
+				strBloque = strBloque + "	 label=<\n"
+				strBloque = strBloque + "	   <table border='1' cellborder='1'>\n"
+				strBloque = strBloque + "		 <tr><td colspan=\"2\"> Bloque Carpeta " + strconv.Itoa(int(inodoR.I_block[i])) + "</td></tr>\n"
+				for k := 0; k < len(bloqueCarpeta.B_content); k++ {
+					strBloque = strBloque + "		 <tr><td>" + string(bloqueCarpeta.B_content[k].B_name[:clen(bloqueCarpeta.B_content[k].B_name[:])]) + "</td><td port='port_" + strconv.Itoa(int(bloqueCarpeta.B_content[k].B_inodo)) + "'>" + strconv.Itoa(int(bloqueCarpeta.B_content[k].B_inodo)) + "</td></tr>\n"
+
+					if bloqueCarpeta.B_content[k].B_inodo != -1 {
+						if string(bloqueCarpeta.B_content[k].B_name[:clen(bloqueCarpeta.B_content[k].B_name[:])]) != "." && string(bloqueCarpeta.B_content[k].B_name[:clen(bloqueCarpeta.B_content[k].B_name[:])]) != ".." {
+							inode := inodo{}
+							iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloqueCarpeta.B_content[k].B_inodo))
+							inode = leerInodo(rutaDisco, iPos)
+							strNewNodo = strNewNodo + reporteDeArbol(inode, sb, rutaDisco, bloqueCarpeta.B_content[k].B_inodo, inodoR.I_block[i])
+						}
+					}
+				}
+				strBloque = strBloque + "	   </table>\n"
+				strBloque = strBloque + "	>];\n"
+
+				strBloque = strBloque + "	inodo_" + strconv.Itoa(int(numIn)) + ":port_" + strconv.Itoa(int(inodoR.I_block[i])) + "-> bloque_" + strconv.Itoa(int(inodoR.I_block[i])) + ";\n"
+			} else {
+				bloqueArchivo = leerBloqueArchivo(rutaDisco, pos)
+				strBloque = strBloque + "bloque_" + strconv.Itoa(int(inodoR.I_block[i])) + " [\n"
+				strBloque = strBloque + "	 shape=plaintext\n"
+				strBloque = strBloque + "	 label=<\n"
+				strBloque = strBloque + "	   <table border='1' cellborder='1'>\n"
+				strBloque = strBloque + "		 <tr><td colspan=\"1\"> Bloque Archivo " + strconv.Itoa(i) + "</td></tr>\n"
+				strBloque = strBloque + "		 <tr><td port='port_0'>" + string(bloqueArchivo.B_content[:clen(bloqueArchivo.B_content[:])]) + "</td></tr>\n"
+				strBloque = strBloque + "	   </table>\n"
+				strBloque = strBloque + "	>];\n"
+				strBloque = strBloque + "	inodo_" + strconv.Itoa(int(numIn)) + ":port_" + strconv.Itoa(int(inodoR.I_block[i])) + "-> bloque_" + strconv.Itoa(int(inodoR.I_block[i])) + ";\n"
+			}
+		}
+	}
+
+	str = str + "		 <tr><td>I_perm</td><td>" + strconv.Itoa(int(inodoR.I_perm)) + "</td></tr>\n"
+	str = str + "	   </table>\n"
+	str = str + "	>];\n"
+
+	if bloqueAnterior != -1 {
+		str = str + "	bloque_" + strconv.Itoa(int(bloqueAnterior)) + ":port_" + strconv.Itoa(int(numIn)) + "-> inodo_" + strconv.Itoa(int(numIn)) + ";\n"
+	}
+
+	str = str + strBloque + strNewNodo
+	return str
+}
+
+func reporteDeBipmapDeInodos(sb superbloque, pathG string, rutaDisco string, inodos []byte) {
 
 	str := ""
 
@@ -2598,11 +2814,11 @@ func reporteDeBipmapDeInodos(sb superbloque, pathG string, rutaDisco string) {
 	}
 
 	b := []byte(str)
-	err := ioutil.WriteFile(pathG, b, 0644)
+	err := ioutil.WriteFile(pathG, b, 0777)
 	if err != nil {
 		err = nil
 		createPath(pathG)
-		err = ioutil.WriteFile(pathG, b, 0644)
+		err = ioutil.WriteFile(pathG, b, 0777)
 		if err != nil {
 			colorize(ColorRed, "Error En La Creacion Del Archivo")
 		}
