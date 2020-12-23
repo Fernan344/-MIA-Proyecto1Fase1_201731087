@@ -97,9 +97,9 @@ type superbloque struct {
 }
 
 type journaling struct {
-	Journal_tipo_operacion [1]byte
+	Journal_tipo_operacion int64
 	Journal_tipo           [1]byte
-	Journal_nombre         [12]byte
+	Journal_nombre         [500]byte
 	Journal_contenido      [1]byte
 	Journal_fecha          [54]byte
 	Journal_propietario    int64
@@ -1404,7 +1404,7 @@ func executeComand(commandArray []string) {
 							user = true
 							parametros := strings.Split(command, "->")
 							usuario = parametros[1]
-						} else if caracteres[0] == "i" && caracteres[1] == "d" && caracteres[2] == "-" && caracteres[3] == ">" {
+						} else if caracteres[0] == "g" && caracteres[1] == "r" && caracteres[2] == "p" && caracteres[3] == "-" && caracteres[4] == ">" {
 							id = true
 							parametros := strings.Split(command, "->")
 							identificador = parametros[1]
@@ -1419,7 +1419,7 @@ func executeComand(commandArray []string) {
 					if other == false && id == true && pwd == true && user == true {
 						crearUsuario(usuario, pass, identificador)
 					} else {
-						fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
+						fmt.Println("Error En Los Parametros De Creacion De usuasio")
 					}
 				} else {
 					colorize(ColorRed, "Error Solo El Usuario Root Puede Ejecutar Este Comando")
@@ -1462,8 +1462,11 @@ func executeComand(commandArray []string) {
 				if r == false {
 					r = false
 				}
-
-				cambiarPermisos(ruta, permisos, r)
+				if session[3] == "root" {
+					cambiarPermisos(ruta, permisos, r)
+				} else {
+					colorize(ColorRed, "Error El Usuario No Puede Ejecutar Este Comando")
+				}
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
 			}
@@ -1664,6 +1667,7 @@ func executeComand(commandArray []string) {
 				}
 			}
 			if other == false && path == true && dest == true {
+				moverDirectorio(ruta, destino)
 				colorize(ColorWhite, "Moviendo Archivo"+"-"+ruta+"-"+destino)
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
@@ -1681,25 +1685,37 @@ func executeComand(commandArray []string) {
 			for i := 1; i < len(commandArray); i++ {
 				command := strings.ToLower(commandArray[i])
 				caracteres := strings.Split(command, "")
-				if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
-					path = true
-					parametros := strings.Split(command, "->")
-					ruta = parametros[1]
-				} else if caracteres[0] == "u" && caracteres[1] == "s" && caracteres[2] == "r" && caracteres[3] == "-" && caracteres[4] == ">" {
-					usr = true
-					parametros := strings.Split(command, "->")
-					user = parametros[1]
-				} else if caracteres[0] == "r" {
-					usr = true
-					parametros := strings.Split(command, "->")
-					user = parametros[1]
+				if len(caracteres) > 1 {
+					if caracteres[0] == "p" && caracteres[1] == "a" && caracteres[2] == "t" && caracteres[3] == "h" && caracteres[4] == "-" && caracteres[5] == ">" {
+						path = true
+						parametros := strings.Split(command, "->")
+						ruta = parametros[1]
+					} else if caracteres[0] == "u" && caracteres[1] == "s" && caracteres[2] == "r" && caracteres[3] == "-" && caracteres[4] == ">" {
+						usr = true
+						parametros := strings.Split(command, "->")
+						user = parametros[1]
+					} else {
+						other = true
+					}
 				} else {
-					other = true
+					if caracteres[0] == "r" {
+						usr = true
+						parametros := strings.Split(command, "->")
+						user = parametros[1]
+					} else {
+						other = true
+					}
 				}
+
 			}
 			if other == false && path == true && usr == true {
 				if r == false {
-
+					r = false
+				}
+				if session[3] == "root" {
+					cambiarPropietario(ruta, user, r)
+				} else {
+					colorize(ColorRed, "Error El Usuario No Puede Ejecutar Este Comando")
 				}
 
 				colorize(ColorWhite, "Moviendo Archivo"+"-"+ruta+"-"+user+"-"+rec)
@@ -1730,8 +1746,11 @@ func executeComand(commandArray []string) {
 				}
 			}
 			if other == false && path == true && grp == true {
-
-				colorize(ColorWhite, "Cambiando Archivo"+"-"+ruta+"-"+group)
+				if session[3] == "root" {
+					colorize(ColorWhite, "Cambiando Archivo"+"-"+ruta+"-"+group)
+				} else {
+					colorize(ColorRed, "Error El usuario No Puede Ejecutar Este Comando")
+				}
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
 			}
@@ -1753,7 +1772,7 @@ func executeComand(commandArray []string) {
 				}
 			}
 			if other == false && id == true {
-
+				recovery()
 				colorize(ColorWhite, "Recuperando"+"-"+identificador)
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
@@ -1776,6 +1795,7 @@ func executeComand(commandArray []string) {
 				}
 			}
 			if other == false && id == true {
+				loss()
 				colorize(ColorWhite, "Perdiendo"+"-"+identificador)
 			} else {
 				fmt.Println("No Se Ha podido Desmontar El Disco Error En Los Parametros")
@@ -2615,6 +2635,737 @@ func colorizefn(color Color, message string) {
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
+func removerCarpeta() {
+
+}
+
+func buscarIdU(nombre string) int {
+	particion, _, path := buscarParticionMontada(session[5])
+	sb := leerSB(path, particion.Part_start)
+	users := leerArchivo("/usuarios.txt", path, sb.S_inode_start, sb)
+
+	registros := strings.Split(users, "\n")
+
+	id := -1
+	for i := 0; i < len(registros)-1; i++ {
+		data := strings.Split(registros[i], ", ")
+		if data[1] == "U" {
+			if data[3] == nombre {
+				idU, _ := strconv.Atoi(data[0])
+				id = idU
+			}
+		}
+	}
+	return id
+}
+
+func cambiarPropietario(rutaDir string, permisos string, r bool) {
+	particion, encontrado, path := buscarParticionMontada(session[5])
+
+	var bit [1]byte
+	copy(bit[:], "0")
+
+	if encontrado == true {
+		sb := leerSB(path, particion.Part_start)
+		lugares := strings.Split(rutaDir, "/")
+		inodoRaiz := leerInodo(path, sb.S_inode_start)
+
+		inodoB, posicion, err := obtenerInodoBuscar(lugares, inodoRaiz, sb, path, 0)
+		_, escritura := isPermited(inodoB)
+		if escritura == true {
+			if err == false {
+
+				idU := buscarIdU(permisos)
+
+				inodoB.I_uid = int64(idU)
+
+				pos := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * posicion)
+				escribirInodo(path, inodoB, pos)
+
+				if r == true {
+					for i := 0; i < len(inodoB.I_block); i++ {
+						if inodoB.I_type == bit {
+							if inodoB.I_block[i] != -1 {
+								bloque := carpeta{}
+								if i != 14 && i != 15 {
+									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+									bloque = leerBloqueCarpeta(path, pos)
+									for k := 0; k < len(bloque.B_content); k++ {
+										if bloque.B_content[k].B_inodo != -1 {
+											if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+												newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+												cambiarPermisos(newRuta, permisos, r)
+											}
+										}
+									}
+								} else {
+									if i == 14 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+										bloqueAP0 := leerBloqueApuntadores(path, pos)
+										for m := 0; m < len(bloqueAP0.B_content); m++ {
+											if bloqueAP0.B_content[m] != -1 {
+												pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
+												bloque = leerBloqueCarpeta(path, pos)
+												for k := 0; k < len(bloque.B_content); k++ {
+													if bloque.B_content[k].B_inodo != -1 {
+														if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+															newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+															cambiarPermisos(newRuta, permisos, r)
+														}
+													}
+												}
+											}
+										}
+									} else {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+										bloqueAP := leerBloqueApuntadores(path, pos)
+										for n := 0; n < len(bloqueAP.B_content); n++ {
+											if bloqueAP.B_content[n] != -1 {
+
+												pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP.B_content[n]))
+												bloqueAP0 := leerBloqueApuntadores(path, pos)
+												for m := 0; m < len(bloqueAP0.B_content); m++ {
+													if bloqueAP0.B_content[m] != -1 {
+														pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
+														bloque = leerBloqueCarpeta(path, pos)
+														for k := 0; k < len(bloque.B_content); k++ {
+															if bloque.B_content[k].B_inodo != -1 {
+																if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+																	newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+																	cambiarPermisos(newRuta, permisos, r)
+																}
+															}
+														}
+													}
+												}
+
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				colorize(ColorWhite, "Dando Cambios"+"-"+rutaDir+"-"+permisos+"-")
+			} else {
+				colorize(ColorRed, "Error La Direccion de Archivo/Carpeta No Existe")
+			}
+		} else {
+			colorize(ColorRed, "Error No Tiene Permisos De Escritura")
+		}
+	}
+}
+
+func recovery() {
+	colorize(ColorRed, "Error No se Pueden Recuperar Los Datos")
+}
+
+func loss() {
+	particion, _, pathD := buscarParticionMontada(session[5])
+	sb := leerSB(pathD, particion.Part_start)
+
+	var arreglo0 []byte
+
+	arreglo0 = llenarArreglo(int(sb.S_bm_inode_start), int(sb.S_bm_block_start), arreglo0)
+
+	var arreglo1 []byte
+
+	arreglo1 = llenarArreglo(int(sb.S_bm_block_start), int(sb.S_inode_start), arreglo1)
+
+	var arreglo2 []byte
+
+	arreglo2 = llenarArreglo(int(sb.S_inode_start), int(sb.S_block_start), arreglo2)
+
+	var arreglo3 []byte
+
+	arreglo3 = llenarArreglo(int(sb.S_block_start), int((particion.Part_start + particion.Part_size)), arreglo3)
+
+	file, err := os.OpenFile(pathD, os.O_RDWR, 0777)
+	defer file.Close()
+	if err != nil {
+		colorize(ColorRed, "Error No Se Ha podido Abrir El Archivo")
+	} else {
+		file.Seek(sb.S_bm_inode_start, 0)
+
+		var bufferEstudiante bytes.Buffer
+		binary.Write(&bufferEstudiante, binary.BigEndian, &arreglo0)
+		escribirBytes(file, bufferEstudiante.Bytes())
+		defer file.Close()
+
+		file.Seek(sb.S_bm_block_start, 0)
+
+		var buffer1 bytes.Buffer
+		binary.Write(&buffer1, binary.BigEndian, &arreglo1)
+		escribirBytes(file, buffer1.Bytes())
+		defer file.Close()
+
+		file.Seek(sb.S_inode_start, 0)
+
+		var buffer2 bytes.Buffer
+		binary.Write(&buffer2, binary.BigEndian, &arreglo2)
+		escribirBytes(file, buffer2.Bytes())
+		defer file.Close()
+
+		file.Seek(sb.S_inode_start, 0)
+
+		var buffer3 bytes.Buffer
+		binary.Write(&buffer3, binary.BigEndian, &arreglo3)
+		escribirBytes(file, buffer3.Bytes())
+		defer file.Close()
+		colorize(ColorWhite, "Error Se Han Perdido Los Datos Del Disco")
+	}
+
+}
+
+func moverDirectorio(directorio string, nuevaRuta string) {
+	particion, _, pathD := buscarParticionMontada(session[5])
+	sb := leerSB(pathD, particion.Part_start)
+
+	lugaresT := strings.Split(directorio, "/")
+
+	var lugaresN []string
+
+	for i := 0; i < len(lugaresT)-1; i++ {
+		lugaresN = append(lugaresN, lugaresT[i])
+	}
+
+	inodoRaiz := leerInodo(pathD, sb.S_inode_start)
+
+	inodoB, _, err := obtenerInodoBuscar(lugaresN, inodoRaiz, sb, pathD, 0)
+
+	lugares := strings.Split(nuevaRuta, "/")
+
+	inodoF, posInode, erro := obtenerInodoBuscar(lugares, inodoRaiz, sb, pathD, 0)
+
+	bloqueAP := int32(-1)
+	nombre := ""
+
+	_, escritura1 := isPermited(inodoB)
+	_, escritura2 := isPermited(inodoF)
+
+	if escritura1 == true && escritura2 == true {
+
+		if err == true || erro == true {
+			colorize(ColorRed, "Error Ruta No Encontrada")
+		} else {
+			for i := 0; i < len(inodoB.I_block); i++ {
+				if inodoB.I_block[i] != -1 {
+					if i != 14 && i != 15 {
+						bloque := carpeta{}
+						pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+						bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+						for j := 0; j < len(bCarpeta.B_content); j++ {
+							if bCarpeta.B_content[j].B_inodo != -1 {
+								if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
+									bloqueAP = bCarpeta.B_content[j].B_inodo
+									nombre = string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])])
+									copy(bCarpeta.B_content[j].B_name[:], "")
+									bCarpeta.B_content[j].B_inodo = -1
+									escribirBloqueCarpeta(pathD, bCarpeta, pos)
+									colorize(ColorWhite, "Cambio De Nombre Completo")
+								}
+							}
+						}
+					} else {
+						if i == 14 {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+							bApuntador := leerBloqueApuntadores(pathD, pos)
+
+							for k := 0; k < len(bApuntador.B_content); k++ {
+								if bApuntador.B_content[k] != -1 {
+									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
+
+									bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+									for j := 0; j < len(bCarpeta.B_content); j++ {
+										if bCarpeta.B_content[j].B_inodo != -1 {
+											if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
+												copy(bCarpeta.B_content[j].B_name[:], "")
+												nombre = string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])])
+												bloqueAP = bCarpeta.B_content[j].B_inodo
+												bCarpeta.B_content[j].B_inodo = -1
+												escribirBloqueCarpeta(pathD, bCarpeta, pos)
+												colorize(ColorWhite, "Cambio De Nombre Completo")
+											}
+										}
+									}
+								}
+							}
+						} else {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+							bApuntador0 := leerBloqueApuntadores(pathD, pos)
+
+							for l := 0; l < len(bApuntador0.B_content); l++ {
+								pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador0.B_content[l]))
+
+								bApuntador := leerBloqueApuntadores(pathD, pos)
+
+								for k := 0; k < len(bApuntador.B_content); k++ {
+									if bApuntador.B_content[k] != -1 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
+
+										bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+										for j := 0; j < len(bCarpeta.B_content); j++ {
+											if bCarpeta.B_content[j].B_inodo != -1 {
+												if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
+													copy(bCarpeta.B_content[j].B_name[:], "")
+													bloqueAP = bCarpeta.B_content[j].B_inodo
+													nombre = string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])])
+													bCarpeta.B_content[j].B_inodo = -1
+													escribirBloqueCarpeta(pathD, bCarpeta, pos)
+													colorize(ColorWhite, "Cambio De Nombre Completo")
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		/**********************************************************************************/
+		/**********************************************************************************/
+		/**********************************************************************************/
+		/**********************************************************************************/
+		/**********************************************************************************/
+		/**********************************************************************************/
+
+		if erro == true {
+			colorize(ColorRed, "Error Ruta No Encontrada")
+		} else {
+			creado := false
+			for i := 0; i < len(inodoF.I_block); i++ {
+				if inodoB.I_block[i] != -1 {
+					if i != 14 && i != 15 {
+						bloque := carpeta{}
+						pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+						bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+						for j := 0; j < len(bCarpeta.B_content); j++ {
+							if bCarpeta.B_content[j].B_inodo == -1 {
+								bCarpeta.B_content[j].B_inodo = bloqueAP
+								copy(bCarpeta.B_content[j].B_name[:], nombre)
+								escribirBloqueCarpeta(pathD, bCarpeta, pos)
+								colorize(ColorWhite, "Carpeta Movida")
+								creado = true
+							}
+							if creado == true {
+								break
+							}
+						}
+					} else {
+						if i == 14 {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+							bApuntador := leerBloqueApuntadores(pathD, pos)
+
+							for k := 0; k < len(bApuntador.B_content); k++ {
+								if bApuntador.B_content[k] != -1 {
+									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
+
+									bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+									for j := 0; j < len(bCarpeta.B_content); j++ {
+										if bCarpeta.B_content[j].B_inodo == -1 {
+											bCarpeta.B_content[j].B_inodo = bloqueAP
+											copy(bCarpeta.B_content[j].B_name[:], nombre)
+											escribirBloqueCarpeta(pathD, bCarpeta, pos)
+											colorize(ColorWhite, "Carpeta Movida")
+											creado = true
+										}
+										if creado == true {
+											break
+										}
+									}
+								} else {
+									bloqueHome := carpeta{}
+									contenido := content{}
+									contenido.B_inodo = bloqueAP
+									copy(contenido.B_name[:], nombre)
+									bloqueHome.B_content[0] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[1] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[2] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[3] = contenido
+
+									bApuntador.B_content[k] = int32(sb.S_first_blo)
+
+									bitmapB := leerBitMapBloques(sb, pathD)
+									bitmapB[sb.S_first_blo] = 1
+
+									bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+									bAPos := sb.S_block_start + (int64(unsafe.Sizeof(inodoB)) * int64(inodoB.I_block[i]))
+
+									sb.S_blocks_count = sb.S_blocks_count + 1
+									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+									sb.S_first_blo = getFirstFree(bitmapB)
+
+									particion, _, _ := buscarParticionMontada(session[5])
+
+									escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+									escribirSuperBloque(pathD, sb, particion.Part_start)
+									escribirApuntador(pathD, bApuntador, bAPos)
+									escribirBloqueCarpeta(pathD, bloqueHome, bPos)
+
+									creado = true
+
+								}
+								if creado == true {
+									break
+								}
+							}
+						} else {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+							bApuntador0 := leerBloqueApuntadores(pathD, pos)
+
+							for l := 0; l < len(bApuntador0.B_content); l++ {
+
+								if bApuntador0.B_content[l] != -1 {
+
+									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador0.B_content[l]))
+
+									bApuntador := leerBloqueApuntadores(pathD, pos)
+
+									for k := 0; k < len(bApuntador.B_content); k++ {
+										if bApuntador.B_content[k] != -1 {
+											pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
+
+											bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+											for j := 0; j < len(bCarpeta.B_content); j++ {
+												if bCarpeta.B_content[j].B_inodo == -1 {
+													bCarpeta.B_content[j].B_inodo = bloqueAP
+													copy(bCarpeta.B_content[j].B_name[:], nombre)
+													escribirBloqueCarpeta(pathD, bCarpeta, pos)
+													colorize(ColorWhite, "Carpeta Movida")
+													creado = true
+												}
+												if creado == true {
+													break
+												}
+											}
+											if creado == true {
+												break
+											}
+										} else {
+											bloqueHome := carpeta{}
+											contenido := content{}
+											contenido.B_inodo = bloqueAP
+											copy(contenido.B_name[:], nombre)
+											bloqueHome.B_content[0] = contenido
+
+											contenido = content{}
+											contenido.B_inodo = -1
+											bloqueHome.B_content[1] = contenido
+
+											contenido = content{}
+											contenido.B_inodo = -1
+											bloqueHome.B_content[2] = contenido
+
+											contenido = content{}
+											contenido.B_inodo = -1
+											bloqueHome.B_content[3] = contenido
+
+											bApuntador.B_content[k] = int32(sb.S_first_blo)
+
+											bitmapB := leerBitMapBloques(sb, pathD)
+											bitmapB[sb.S_first_blo] = 1
+
+											bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+											bAPos := sb.S_block_start + (int64(unsafe.Sizeof(inodoB)) * int64(inodoB.I_block[i]))
+
+											sb.S_blocks_count = sb.S_blocks_count + 1
+											sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+											sb.S_first_blo = getFirstFree(bitmapB)
+
+											particion, _, _ := buscarParticionMontada(session[5])
+
+											escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+											escribirSuperBloque(pathD, sb, particion.Part_start)
+											escribirApuntador(pathD, bApuntador, bAPos)
+											escribirBloqueCarpeta(pathD, bloqueHome, bPos)
+											creado = true
+										}
+										if creado == true {
+											break
+										}
+									}
+								} else {
+									bApuntador0.B_content[l] = int32(sb.S_first_blo)
+									bitmapB := leerBitMapBloques(sb, pathD)
+									bitmapB[sb.S_first_blo] = 1
+
+									sb.S_blocks_count = sb.S_blocks_count + 1
+									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+									sb.S_first_blo = getFirstFree(bitmapB)
+
+									bloqueHome := carpeta{}
+									contenido := content{}
+									contenido.B_inodo = bloqueAP
+									copy(contenido.B_name[:], nombre)
+									bloqueHome.B_content[0] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[1] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[2] = contenido
+
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[3] = contenido
+
+									inodoB.I_block[i] = sb.S_first_blo
+
+									bitmapB[sb.S_first_blo] = 1
+
+									bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+									posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * int64(posInode))
+
+									sb.S_blocks_count = sb.S_blocks_count + 1
+									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+									sb.S_first_blo = getFirstFree(bitmapB)
+
+									bloqueApuntador := apuntador{}
+									bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+
+									for i := 1; i < len(bloqueApuntador.B_content); i++ {
+										bloqueApuntador.B_content[i] = -1
+									}
+
+									bitmapB[sb.S_first_blo] = 1
+
+									bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+
+									sb.S_blocks_count = sb.S_blocks_count + 1
+									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+									sb.S_first_blo = getFirstFree(bitmapB)
+
+									particion, _, _ := buscarParticionMontada(session[5])
+
+									posPA := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(inodoB.I_block[i]))
+
+									escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+									escribirSuperBloque(pathD, sb, particion.Part_start)
+									escribirInodo(pathD, inodoB, posI)
+									escribirApuntador(pathD, bApuntador0, posPA)
+									escribirApuntador(pathD, bloqueApuntador, bApuntador)
+									escribirBloqueCarpeta(pathD, bloqueHome, bCarpeta)
+
+									break
+								}
+								if creado == true {
+									break
+								}
+							}
+						}
+						if creado == true {
+							break
+						}
+					}
+				} else {
+					if i != 14 && i != 15 {
+						bloqueHome := carpeta{}
+						contenido := content{}
+						contenido.B_inodo = bloqueAP
+						copy(contenido.B_name[:], nombre)
+						bloqueHome.B_content[0] = contenido
+
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[1] = contenido
+
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[2] = contenido
+
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[3] = contenido
+
+						inodoB.I_block[i] = sb.S_first_blo
+
+						bitmapB := leerBitMapBloques(sb, pathD)
+						bitmapB[sb.S_first_blo] = 1
+
+						bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+						posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * int64(posInode))
+
+						sb.S_blocks_count = sb.S_blocks_count + 1
+						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+						sb.S_first_blo = getFirstFree(bitmapB)
+
+						particion, _, _ := buscarParticionMontada(session[5])
+
+						escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+						escribirSuperBloque(pathD, sb, particion.Part_start)
+						escribirInodo(pathD, inodoB, posI)
+						escribirBloqueCarpeta(pathD, bloqueHome, bPos)
+						break
+					} else {
+						if i == 14 {
+
+							bloqueHome := carpeta{}
+							contenido := content{}
+							contenido.B_inodo = bloqueAP
+							copy(contenido.B_name[:], nombre)
+							bloqueHome.B_content[0] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[1] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[2] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[3] = contenido
+
+							inodoB.I_block[i] = sb.S_first_blo
+
+							bitmapB := leerBitMapBloques(sb, pathD)
+							bitmapB[sb.S_first_blo] = 1
+
+							bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							posI := sb.S_inode_start + (int64(unsafe.Sizeof(pathD)) * int64(posInode))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bloqueApuntador := apuntador{}
+							bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+
+							for i := 1; i < len(bloqueApuntador.B_content); i++ {
+								bloqueApuntador.B_content[i] = -1
+							}
+
+							bitmapB[sb.S_first_blo] = 1
+
+							bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							particion, _, _ := buscarParticionMontada(session[5])
+
+							escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+							escribirSuperBloque(pathD, sb, particion.Part_start)
+							escribirInodo(pathD, inodoB, posI)
+							escribirApuntador(pathD, bloqueApuntador, bApuntador)
+							escribirBloqueCarpeta(pathD, bloqueHome, bCarpeta)
+							break
+						} else {
+							bloqueHome := carpeta{}
+							contenido := content{}
+							contenido.B_inodo = bloqueAP
+							copy(contenido.B_name[:], nombre)
+							bloqueHome.B_content[0] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[1] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[2] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[3] = contenido
+
+							inodoB.I_block[i] = sb.S_first_blo
+
+							bitmapB := leerBitMapBloques(sb, pathD)
+							bitmapB[sb.S_first_blo] = 1
+
+							bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * int64(posInode))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bloqueApuntador := apuntador{}
+							bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+
+							for i := 1; i < len(bloqueApuntador.B_content); i++ {
+								bloqueApuntador.B_content[i] = -1
+							}
+
+							bitmapB[sb.S_first_blo] = 1
+
+							bApuntador1 := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bloqueApuntador1 := apuntador{}
+							bloqueApuntador1.B_content[0] = int32(sb.S_first_blo)
+
+							for i := 1; i < len(bloqueApuntador1.B_content); i++ {
+								bloqueApuntador1.B_content[i] = -1
+							}
+
+							bitmapB[sb.S_first_blo] = 1
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							particion, _, _ := buscarParticionMontada(session[5])
+
+							escribirBitmap(pathD, bitmapB, sb.S_bm_block_start)
+							escribirSuperBloque(pathD, sb, particion.Part_start)
+							escribirInodo(pathD, inodoB, posI)
+							escribirApuntador(pathD, bloqueApuntador, bApuntador)
+							escribirApuntador(pathD, bloqueApuntador1, bApuntador1)
+							escribirBloqueCarpeta(pathD, bloqueHome, bCarpeta)
+							break
+						}
+					}
+				}
+				if creado == true {
+					break
+				}
+			}
+		}
+	} else {
+		colorize(ColorRed, "Error No Tiene Permisos De Escritura")
+	}
+}
+
 func cambiarGrupo(newGroup string, user string) {
 	particion, _, pathD := buscarParticionMontada(session[5])
 	sb := leerSB(pathD, particion.Part_start)
@@ -2672,59 +3423,33 @@ func cambiarNombre(rutaAntigua string, rutaNueva string) {
 	inodoRaiz := leerInodo(pathD, sb.S_inode_start)
 
 	inodoB, _, err := obtenerInodoBuscar(lugaresN, inodoRaiz, sb, pathD, 0)
+	_, escritura := isPermited(inodoB)
+	if escritura == true {
 
-	if err == true {
-		colorize(ColorRed, "Error Ruta No Encontrada")
-	} else {
-		for i := 0; i < len(inodoB.I_block); i++ {
-			if inodoB.I_block[i] != -1 {
-				if i != 14 && i != 15 {
-					bloque := carpeta{}
-					pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
-
-					bCarpeta := leerBloqueCarpeta(pathD, pos)
-
-					for j := 0; j < len(bCarpeta.B_content); j++ {
-						if bCarpeta.B_content[j].B_inodo != -1 {
-							if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
-								copy(bCarpeta.B_content[j].B_name[:], rutaNueva)
-								escribirBloqueCarpeta(pathD, bCarpeta, pos)
-								colorize(ColorWhite, "Cambio De Nombre Completo")
-							}
-						}
-					}
-				} else {
-					if i == 14 {
-						bloque := apuntador{}
+		if err == true {
+			colorize(ColorRed, "Error Ruta No Encontrada")
+		} else {
+			for i := 0; i < len(inodoB.I_block); i++ {
+				if inodoB.I_block[i] != -1 {
+					if i != 14 && i != 15 {
+						bloque := carpeta{}
 						pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
 
-						bApuntador := leerBloqueApuntadores(pathD, pos)
+						bCarpeta := leerBloqueCarpeta(pathD, pos)
 
-						for k := 0; k < len(bApuntador.B_content); k++ {
-							if bApuntador.B_content[k] != -1 {
-								pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
-
-								bCarpeta := leerBloqueCarpeta(pathD, pos)
-
-								for j := 0; j < len(bCarpeta.B_content); j++ {
-									if bCarpeta.B_content[j].B_inodo != -1 {
-										if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
-											copy(bCarpeta.B_content[j].B_name[:], rutaNueva)
-											escribirBloqueCarpeta(pathD, bCarpeta, pos)
-											colorize(ColorWhite, "Cambio De Nombre Completo")
-										}
-									}
+						for j := 0; j < len(bCarpeta.B_content); j++ {
+							if bCarpeta.B_content[j].B_inodo != -1 {
+								if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
+									copy(bCarpeta.B_content[j].B_name[:], rutaNueva)
+									escribirBloqueCarpeta(pathD, bCarpeta, pos)
+									colorize(ColorWhite, "Cambio De Nombre Completo")
 								}
 							}
 						}
 					} else {
-						bloque := apuntador{}
-						pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
-
-						bApuntador0 := leerBloqueApuntadores(pathD, pos)
-
-						for l := 0; l < len(bApuntador0.B_content); l++ {
-							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador0.B_content[l]))
+						if i == 14 {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
 
 							bApuntador := leerBloqueApuntadores(pathD, pos)
 
@@ -2745,13 +3470,43 @@ func cambiarNombre(rutaAntigua string, rutaNueva string) {
 									}
 								}
 							}
+						} else {
+							bloque := apuntador{}
+							pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+
+							bApuntador0 := leerBloqueApuntadores(pathD, pos)
+
+							for l := 0; l < len(bApuntador0.B_content); l++ {
+								pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador0.B_content[l]))
+
+								bApuntador := leerBloqueApuntadores(pathD, pos)
+
+								for k := 0; k < len(bApuntador.B_content); k++ {
+									if bApuntador.B_content[k] != -1 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bApuntador.B_content[k]))
+
+										bCarpeta := leerBloqueCarpeta(pathD, pos)
+
+										for j := 0; j < len(bCarpeta.B_content); j++ {
+											if bCarpeta.B_content[j].B_inodo != -1 {
+												if string(bCarpeta.B_content[j].B_name[:clen(bCarpeta.B_content[j].B_name[:])]) != lugaresT[len(lugaresT)-1] {
+													copy(bCarpeta.B_content[j].B_name[:], rutaNueva)
+													escribirBloqueCarpeta(pathD, bCarpeta, pos)
+													colorize(ColorWhite, "Cambio De Nombre Completo")
+												}
+											}
+										}
+									}
+								}
+							}
 						}
 					}
 				}
 			}
 		}
+	} else {
+		colorize(ColorRed, "Error No Tiene Permisos De Escritura")
 	}
-
 }
 
 func reporteFile(rutaFile string, identificador string, pathG string) {
@@ -3336,21 +4091,240 @@ func reporteInodos(sb superbloque, pathG string, rutaDisco string) {
 	}
 }
 
-func isPermited(nodoActual inodo) bool {
-	permited := false
+func isPermited(inodoActual inodo) (bool, bool) {
+	particion, _, path := buscarParticionMontada(session[5])
+	sb := leerSB(path, particion.Part_start)
 
-	perms := strconv.Itoa(int(nodoActual.I_perm))
+	lectura := false
+	escritura := false
+
+	perms := strconv.Itoa(int(inodoActual.I_perm))
 	permsIndividuales := strings.Split(perms, "")
 
+	idU, _ := strconv.Atoi(session[0])
+
+	idG := getIdGroup(path, sb)
+
+	// otros/grupo/usuario
+
 	if len(permsIndividuales) == 1 {
+		if permsIndividuales[0] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[0] == "2" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[0] == "3" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[0] == "4" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "5" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "6" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "7" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		}
 		fmt.Println("Longitud De Uno")
 	} else if len(permsIndividuales) == 2 {
+		if permsIndividuales[0] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[0] == "2" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[0] == "3" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[0] == "4" {
+			if idG == inodoActual.I_gid {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "5" {
+			if idG == inodoActual.I_gid {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "6" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = true
+			}
+		} else if permsIndividuales[0] == "7" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = true
+			}
+		}
+
+		if permsIndividuales[1] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[1] == "2" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[1] == "3" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[1] == "4" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "5" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "6" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "7" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		}
 		fmt.Println("Longitud De Dos")
 	} else if len(permsIndividuales) == 3 {
+
+		if permsIndividuales[0] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[0] == "2" {
+
+			escritura = true
+			lectura = false
+		} else if permsIndividuales[0] == "3" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[0] == "4" {
+
+			escritura = false
+			lectura = true
+		} else if permsIndividuales[0] == "5" {
+
+			escritura = false
+			lectura = true
+		} else if permsIndividuales[0] == "6" {
+
+			escritura = true
+			lectura = true
+		} else if permsIndividuales[0] == "7" {
+
+			escritura = true
+			lectura = true
+
+		}
+
+		if permsIndividuales[1] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[1] == "2" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[1] == "3" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[1] == "4" {
+			if idG == inodoActual.I_gid {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "5" {
+			if idG == inodoActual.I_gid {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "6" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = true
+			}
+		} else if permsIndividuales[1] == "7" {
+			if idG == inodoActual.I_gid {
+				escritura = true
+				lectura = true
+			}
+		}
+
+		if permsIndividuales[2] == "0" {
+			lectura = false
+			escritura = false
+		} else if permsIndividuales[2] == "2" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[2] == "3" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = false
+			}
+		} else if permsIndividuales[2] == "4" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[2] == "5" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = false
+				lectura = true
+			}
+		} else if permsIndividuales[2] == "6" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		} else if permsIndividuales[2] == "7" {
+			if idU == int(inodoActual.I_uid) {
+				escritura = true
+				lectura = true
+			}
+		}
 		fmt.Println("Longitud De Tres")
 	}
 
-	return permited
+	if idU == 1 {
+		lectura = true
+		escritura = true
+	}
+
+	return lectura, escritura
 }
 
 func cambiarPermisos(rutaDir string, permisos string, r bool) {
@@ -3365,73 +4339,75 @@ func cambiarPermisos(rutaDir string, permisos string, r bool) {
 		inodoRaiz := leerInodo(path, sb.S_inode_start)
 
 		inodoB, posicion, err := obtenerInodoBuscar(lugares, inodoRaiz, sb, path, 0)
+		_, escritura := isPermited(inodoB)
+		if escritura == true {
+			if err == false {
 
-		if err == false {
+				newPerms, _ := strconv.Atoi(permisos)
 
-			newPerms, _ := strconv.Atoi(permisos)
+				inodoB.I_perm = int64(newPerms)
 
-			inodoB.I_perm = int64(newPerms)
+				pos := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * posicion)
+				escribirInodo(path, inodoB, pos)
 
-			pos := sb.S_inode_start + (int64(unsafe.Sizeof(inodoB)) * posicion)
-			escribirInodo(path, inodoB, pos)
-
-			if r == true {
-				for i := 0; i < len(inodoB.I_block); i++ {
-					if inodoB.I_type == bit {
-						if inodoB.I_block[i] != -1 {
-							bloque := carpeta{}
-							if i != 14 && i != 15 {
-								pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
-								bloque = leerBloqueCarpeta(path, pos)
-								for k := 0; k < len(bloque.B_content); k++ {
-									if bloque.B_content[k].B_inodo != -1 {
-										if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
-											newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
-											cambiarPermisos(newRuta, permisos, r)
-										}
-									}
-								}
-							} else {
-								if i == 14 {
+				if r == true {
+					for i := 0; i < len(inodoB.I_block); i++ {
+						if inodoB.I_type == bit {
+							if inodoB.I_block[i] != -1 {
+								bloque := carpeta{}
+								if i != 14 && i != 15 {
 									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
-									bloqueAP0 := leerBloqueApuntadores(path, pos)
-									for m := 0; m < len(bloqueAP0.B_content); m++ {
-										if bloqueAP0.B_content[m] != -1 {
-											pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
-											bloque = leerBloqueCarpeta(path, pos)
-											for k := 0; k < len(bloque.B_content); k++ {
-												if bloque.B_content[k].B_inodo != -1 {
-													if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
-														newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
-														cambiarPermisos(newRuta, permisos, r)
-													}
-												}
+									bloque = leerBloqueCarpeta(path, pos)
+									for k := 0; k < len(bloque.B_content); k++ {
+										if bloque.B_content[k].B_inodo != -1 {
+											if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+												newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+												cambiarPermisos(newRuta, permisos, r)
 											}
 										}
 									}
 								} else {
-									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
-									bloqueAP := leerBloqueApuntadores(path, pos)
-									for n := 0; n < len(bloqueAP.B_content); n++ {
-										if bloqueAP.B_content[n] != -1 {
-
-											pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP.B_content[n]))
-											bloqueAP0 := leerBloqueApuntadores(path, pos)
-											for m := 0; m < len(bloqueAP0.B_content); m++ {
-												if bloqueAP0.B_content[m] != -1 {
-													pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
-													bloque = leerBloqueCarpeta(path, pos)
-													for k := 0; k < len(bloque.B_content); k++ {
-														if bloque.B_content[k].B_inodo != -1 {
-															if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
-																newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
-																cambiarPermisos(newRuta, permisos, r)
-															}
+									if i == 14 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+										bloqueAP0 := leerBloqueApuntadores(path, pos)
+										for m := 0; m < len(bloqueAP0.B_content); m++ {
+											if bloqueAP0.B_content[m] != -1 {
+												pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
+												bloque = leerBloqueCarpeta(path, pos)
+												for k := 0; k < len(bloque.B_content); k++ {
+													if bloque.B_content[k].B_inodo != -1 {
+														if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+															newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+															cambiarPermisos(newRuta, permisos, r)
 														}
 													}
 												}
 											}
+										}
+									} else {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoB.I_block[i])
+										bloqueAP := leerBloqueApuntadores(path, pos)
+										for n := 0; n < len(bloqueAP.B_content); n++ {
+											if bloqueAP.B_content[n] != -1 {
 
+												pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP.B_content[n]))
+												bloqueAP0 := leerBloqueApuntadores(path, pos)
+												for m := 0; m < len(bloqueAP0.B_content); m++ {
+													if bloqueAP0.B_content[m] != -1 {
+														pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAP0.B_content[m]))
+														bloque = leerBloqueCarpeta(path, pos)
+														for k := 0; k < len(bloque.B_content); k++ {
+															if bloque.B_content[k].B_inodo != -1 {
+																if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != "." && string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) != ".." {
+																	newRuta := rutaDir + "/" + string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])])
+																	cambiarPermisos(newRuta, permisos, r)
+																}
+															}
+														}
+													}
+												}
+
+											}
 										}
 									}
 								}
@@ -3439,11 +4415,13 @@ func cambiarPermisos(rutaDir string, permisos string, r bool) {
 						}
 					}
 				}
-			}
 
-			colorize(ColorWhite, "Dando Permisos"+"-"+rutaDir+"-"+permisos+"-")
+				colorize(ColorWhite, "Dando Permisos"+"-"+rutaDir+"-"+permisos+"-")
+			} else {
+				colorize(ColorRed, "Error La Direccion de Archivo/Carpeta No Existe")
+			}
 		} else {
-			colorize(ColorRed, "Error La Direccion de Archivo/Carpeta No Existe")
+			colorize(ColorRed, "Error No Tiene Permisos De Escritura")
 		}
 	}
 }
@@ -3590,183 +4568,193 @@ func crearFichero(rutaDir string, p bool, tam int64) {
 }
 
 func buscarArchivo(ruta []string, rutaArchivo []string, sb superbloque, inodoR inodo, rutaDisco string, p bool, padre int64, size int64) {
-	bloque := carpeta{}
-	inode := inodo{}
-	var bit [1]byte
-	copy(bit[:], "0")
+	lectura, _ := isPermited(inodoR)
+	if lectura == true {
+		bloque := carpeta{}
+		inode := inodo{}
+		var bit [1]byte
+		copy(bit[:], "0")
 
-	var newRuta []string
-	for i := 1; i < len(ruta); i++ {
-		newRuta = append(newRuta, ruta[i])
+		var newRuta []string
+		for i := 1; i < len(ruta); i++ {
+			newRuta = append(newRuta, ruta[i])
+		}
+
+		var newRutaArchivo []string
+		for i := 1; i < len(rutaArchivo); i++ {
+			newRutaArchivo = append(newRutaArchivo, rutaArchivo[i])
+		}
+
+		existe := false
+
+		if len(newRuta) != 0 {
+			fmt.Println("**************|||||||||||**************")
+			for i := 0; i < len(inodoR.I_block); i++ {
+				fmt.Println(inodoR.I_block[i], "-Inodo")
+				if inodoR.I_block[i] != -1 {
+					pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+					if inodoR.I_type == bit {
+						bloque = leerBloqueCarpeta(rutaDisco, pos)
+						for k := 0; k < len(bloque.B_content); k++ {
+							fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+							if bloque.B_content[k].B_inodo != -1 {
+								if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRutaArchivo[0] {
+									existe = true
+									iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
+									inode = leerInodo(rutaDisco, iPos)
+									buscarArchivo(newRuta, newRutaArchivo, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo), size)
+									break
+								}
+							}
+						}
+						if existe == true {
+							break
+						}
+					} else {
+						break
+					}
+				}
+			}
+			if existe == false {
+				if p == true {
+					crearCarpeta(ruta, sb, inodoR, rutaDisco, p, padre)
+					buscarArchivo(ruta, rutaArchivo, sb, inodoR, rutaDisco, p, padre, size)
+				} else {
+					colorize(ColorRed, "Error: No Existe El Directorio")
+				}
+			}
+		} else {
+			if len(newRutaArchivo) == 1 {
+				fmt.Println("llegamos hasta aca")
+				guardarArchivo(inodoR, newRutaArchivo[0], sb, rutaDisco, padre, size)
+			}
+		}
+	} else {
+		colorize(ColorRed, "Error No Tiene Permisos De Lectura")
 	}
+}
 
-	var newRutaArchivo []string
-	for i := 1; i < len(rutaArchivo); i++ {
-		newRutaArchivo = append(newRutaArchivo, rutaArchivo[i])
-	}
+func guardarArchivo(inodoR inodo, nombreArchivo string, sb superbloque, rutaDisco string, padre int64, size int64) {
+	_, escritura := isPermited(inodoR)
+	if escritura == true {
+		fmt.Println("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
+		var bit [1]byte
+		copy(bit[:], "0")
+		bloque := carpeta{}
 
-	existe := false
-
-	if len(newRuta) != 0 {
-		fmt.Println("**************|||||||||||**************")
 		for i := 0; i < len(inodoR.I_block); i++ {
 			fmt.Println(inodoR.I_block[i], "-Inodo")
 			if inodoR.I_block[i] != -1 {
 				pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
 				if inodoR.I_type == bit {
+					creado := false
 					bloque = leerBloqueCarpeta(rutaDisco, pos)
 					for k := 0; k < len(bloque.B_content); k++ {
-						fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-						if bloque.B_content[k].B_inodo != -1 {
-							if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRutaArchivo[0] {
-								existe = true
-								iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
-								inode = leerInodo(rutaDisco, iPos)
-								buscarArchivo(newRuta, newRutaArchivo, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo), size)
-								break
+						if bloque.B_content[k].B_inodo == -1 {
+							bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
+							copy(bloque.B_content[k].B_name[:], nombreArchivo)
+							fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+
+							bitmap := leerBitMapInodos(sb, rutaDisco)
+							bitmap[sb.S_first_ino] = 1
+
+							sb.S_inodes_count = sb.S_inodes_count + 1
+							sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+							sb.S_first_ino = getFirstFree(bitmap)
+
+							idUser, _ := strconv.Atoi(session[0])
+							inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), size, "1", 664)
+							particion, _, _ := buscarParticionMontada(session[5])
+
+							posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
+
+							var bloques []archivo
+
+							limite := 0
+							for j := int64(0); j < size; j++ {
+								limite++
+								if limite == 64 {
+									limite = 0
+									bloqueArchivo := archivo{}
+									bloques = append(bloques, bloqueArchivo)
+								}
 							}
+
+							if limite != 0 {
+								bloqueArchivo := archivo{}
+								copy(bloqueArchivo.B_content[:], "Jose preuba Guerra")
+								bloques = append(bloques, bloqueArchivo)
+							}
+
+							bitmapB := leerBitMapBloques(sb, rutaDisco)
+
+							for j := 0; j < len(bloques); j++ {
+								inodoNew.I_block[i] = sb.S_first_blo
+								bitmapB[sb.S_first_blo] = 1
+								bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloques[i])) * int64(sb.S_first_blo))
+								sb.S_blocks_count = sb.S_blocks_count + 1
+								sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+								sb.S_first_blo = getFirstFree(bitmapB)
+								escribirBloqueArc(rutaDisco, bloques[j], bPos)
+							}
+
+							escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+							escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+							escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+							escribirInodo(rutaDisco, inodoNew, posI)
+							escribirBloqueCarpeta(rutaDisco, bloque, pos)
+							creado = true
+							break
 						}
 					}
-					if existe == true {
+					if creado == true {
 						break
 					}
 				} else {
 					break
 				}
-			}
-		}
-		if existe == false {
-			if p == true {
-				crearCarpeta(ruta, sb, inodoR, rutaDisco, p, padre)
-				buscarArchivo(ruta, rutaArchivo, sb, inodoR, rutaDisco, p, padre, size)
 			} else {
-				colorize(ColorRed, "Error: No Existe El Directorio")
+				bloqueHome := carpeta{}
+				contenido := content{}
+				contenido.B_inodo = -1
+				bloqueHome.B_content[0] = contenido
+
+				contenido = content{}
+				contenido.B_inodo = -1
+				bloqueHome.B_content[1] = contenido
+
+				contenido = content{}
+				contenido.B_inodo = -1
+				bloqueHome.B_content[2] = contenido
+
+				contenido = content{}
+				contenido.B_inodo = -1
+				bloqueHome.B_content[3] = contenido
+
+				inodoR.I_block[i] = sb.S_first_blo
+
+				bitmapB := leerBitMapBloques(sb, rutaDisco)
+				bitmapB[sb.S_first_blo] = 1
+
+				bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+				posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
+
+				sb.S_blocks_count = sb.S_blocks_count + 1
+				sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+				sb.S_first_blo = getFirstFree(bitmapB)
+
+				particion, _, _ := buscarParticionMontada(session[5])
+
+				escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+				escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+				escribirInodo(rutaDisco, inodoR, posI)
+				escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+				guardarArchivo(inodoR, nombreArchivo, sb, rutaDisco, padre, size)
+				break
 			}
 		}
 	} else {
-		if len(newRutaArchivo) == 1 {
-			fmt.Println("llegamos hasta aca")
-			guardarArchivo(inodoR, newRutaArchivo[0], sb, rutaDisco, padre, size)
-		}
-	}
-}
-
-func guardarArchivo(inodoR inodo, nombreArchivo string, sb superbloque, rutaDisco string, padre int64, size int64) {
-	fmt.Println("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
-	var bit [1]byte
-	copy(bit[:], "0")
-	bloque := carpeta{}
-
-	for i := 0; i < len(inodoR.I_block); i++ {
-		fmt.Println(inodoR.I_block[i], "-Inodo")
-		if inodoR.I_block[i] != -1 {
-			pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
-			if inodoR.I_type == bit {
-				creado := false
-				bloque = leerBloqueCarpeta(rutaDisco, pos)
-				for k := 0; k < len(bloque.B_content); k++ {
-					if bloque.B_content[k].B_inodo == -1 {
-						bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
-						copy(bloque.B_content[k].B_name[:], nombreArchivo)
-						fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-
-						bitmap := leerBitMapInodos(sb, rutaDisco)
-						bitmap[sb.S_first_ino] = 1
-
-						sb.S_inodes_count = sb.S_inodes_count + 1
-						sb.S_free_inodes_count = sb.S_free_inodes_count - 1
-						sb.S_first_ino = getFirstFree(bitmap)
-
-						idUser, _ := strconv.Atoi(session[0])
-						inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), size, "1", 664)
-						particion, _, _ := buscarParticionMontada(session[5])
-
-						posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
-
-						var bloques []archivo
-
-						limite := 0
-						for j := int64(0); j < size; j++ {
-							limite++
-							if limite == 64 {
-								limite = 0
-								bloqueArchivo := archivo{}
-								bloques = append(bloques, bloqueArchivo)
-							}
-						}
-
-						if limite != 0 {
-							bloqueArchivo := archivo{}
-							copy(bloqueArchivo.B_content[:], "Jose preuba Guerra")
-							bloques = append(bloques, bloqueArchivo)
-						}
-
-						bitmapB := leerBitMapBloques(sb, rutaDisco)
-
-						for j := 0; j < len(bloques); j++ {
-							inodoNew.I_block[i] = sb.S_first_blo
-							bitmapB[sb.S_first_blo] = 1
-							bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloques[i])) * int64(sb.S_first_blo))
-							sb.S_blocks_count = sb.S_blocks_count + 1
-							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-							sb.S_first_blo = getFirstFree(bitmapB)
-							escribirBloqueArc(rutaDisco, bloques[j], bPos)
-						}
-
-						escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
-						escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-						escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-						escribirInodo(rutaDisco, inodoNew, posI)
-						escribirBloqueCarpeta(rutaDisco, bloque, pos)
-						creado = true
-						break
-					}
-				}
-				if creado == true {
-					break
-				}
-			} else {
-				break
-			}
-		} else {
-			bloqueHome := carpeta{}
-			contenido := content{}
-			contenido.B_inodo = -1
-			bloqueHome.B_content[0] = contenido
-
-			contenido = content{}
-			contenido.B_inodo = -1
-			bloqueHome.B_content[1] = contenido
-
-			contenido = content{}
-			contenido.B_inodo = -1
-			bloqueHome.B_content[2] = contenido
-
-			contenido = content{}
-			contenido.B_inodo = -1
-			bloqueHome.B_content[3] = contenido
-
-			inodoR.I_block[i] = sb.S_first_blo
-
-			bitmapB := leerBitMapBloques(sb, rutaDisco)
-			bitmapB[sb.S_first_blo] = 1
-
-			bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-			posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
-
-			sb.S_blocks_count = sb.S_blocks_count + 1
-			sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-			sb.S_first_blo = getFirstFree(bitmapB)
-
-			particion, _, _ := buscarParticionMontada(session[5])
-
-			escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-			escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-			escribirInodo(rutaDisco, inodoR, posI)
-			escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-			guardarArchivo(inodoR, nombreArchivo, sb, rutaDisco, padre, size)
-			break
-		}
+		colorize(ColorRed, "Error No Tiene Permisos De Escritura")
 	}
 }
 
@@ -3782,63 +4770,37 @@ func crearDirectorio(rutaDir string, p bool) {
 }
 
 func crearCarpeta(ruta []string, sb superbloque, inodoR inodo, rutaDisco string, p bool, padre int64) {
-	bloque := carpeta{}
-	inode := inodo{}
-	var bit [1]byte
-	copy(bit[:], "0")
+	lectura, _ := isPermited(inodoR)
+	if lectura == true {
+		bloque := carpeta{}
+		inode := inodo{}
+		var bit [1]byte
+		copy(bit[:], "0")
 
-	var newRuta []string
-	for i := 1; i < len(ruta); i++ {
-		newRuta = append(newRuta, ruta[i])
-	}
+		var newRuta []string
+		for i := 1; i < len(ruta); i++ {
+			newRuta = append(newRuta, ruta[i])
+		}
 
-	existe := false
+		existe := false
 
-	if len(newRuta) != 0 {
-		fmt.Println("************************************")
-		for i := 0; i < len(inodoR.I_block); i++ {
-			fmt.Println(inodoR.I_block[i], "-Inodo")
-			if inodoR.I_block[i] != -1 {
-				pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
-				if inodoR.I_type == bit {
-					if i != 14 && i != 15 {
-						bloque = leerBloqueCarpeta(rutaDisco, pos)
-						for k := 0; k < len(bloque.B_content); k++ {
-							fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-							if bloque.B_content[k].B_inodo != -1 {
-								if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
-									existe = true
-									iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
-									inode = leerInodo(rutaDisco, iPos)
-									crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
-									break
-								}
-							}
-						}
-						if existe == true {
-							break
-						}
-					} else {
-						if i == 14 {
-							bloqueAp := leerBloqueApuntadores(rutaDisco, pos)
-
-							for m := 0; m < len(bloqueAp.B_content); m++ {
-								if bloqueAp.B_content[m] != -1 {
-									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp.B_content[m]))
-									bloque = leerBloqueCarpeta(rutaDisco, pos)
-									for k := 0; k < len(bloque.B_content); k++ {
-										fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-										if bloque.B_content[k].B_inodo != -1 {
-											if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
-												existe = true
-												iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
-												inode = leerInodo(rutaDisco, iPos)
-												crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
-												break
-											}
-										}
-									}
-									if existe == true {
+		if len(newRuta) != 0 {
+			fmt.Println("************************************")
+			for i := 0; i < len(inodoR.I_block); i++ {
+				fmt.Println(inodoR.I_block[i], "-Inodo")
+				if inodoR.I_block[i] != -1 {
+					pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+					if inodoR.I_type == bit {
+						if i != 14 && i != 15 {
+							bloque = leerBloqueCarpeta(rutaDisco, pos)
+							for k := 0; k < len(bloque.B_content); k++ {
+								fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+								if bloque.B_content[k].B_inodo != -1 {
+									if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
+										existe = true
+										iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
+										inode = leerInodo(rutaDisco, iPos)
+										crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
 										break
 									}
 								}
@@ -3847,504 +4809,529 @@ func crearCarpeta(ruta []string, sb superbloque, inodoR inodo, rutaDisco string,
 								break
 							}
 						} else {
-							bloqueAp0 := leerBloqueApuntadores(rutaDisco, pos)
-							for n := 0; n < len(bloqueAp0.B_content); n++ {
-								if bloqueAp0.B_content[n] != -1 {
-									pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp0.B_content[n]))
-									bloqueAp := leerBloqueApuntadores(rutaDisco, pos)
+							if i == 14 {
+								bloqueAp := leerBloqueApuntadores(rutaDisco, pos)
 
-									for m := 0; m < len(bloqueAp.B_content); m++ {
-										if bloqueAp.B_content[m] != -1 {
-											pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp.B_content[m]))
-											bloque = leerBloqueCarpeta(rutaDisco, pos)
-											for k := 0; k < len(bloque.B_content); k++ {
-												fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-												if bloque.B_content[k].B_inodo != -1 {
-													if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
-														existe = true
-														iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
-														inode = leerInodo(rutaDisco, iPos)
-														crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
-														break
-													}
+								for m := 0; m < len(bloqueAp.B_content); m++ {
+									if bloqueAp.B_content[m] != -1 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp.B_content[m]))
+										bloque = leerBloqueCarpeta(rutaDisco, pos)
+										for k := 0; k < len(bloque.B_content); k++ {
+											fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+											if bloque.B_content[k].B_inodo != -1 {
+												if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
+													existe = true
+													iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
+													inode = leerInodo(rutaDisco, iPos)
+													crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
+													break
 												}
 											}
-											if existe == true {
-												break
-											}
+										}
+										if existe == true {
+											break
 										}
 									}
-									if existe == true {
-										break
+								}
+								if existe == true {
+									break
+								}
+							} else {
+								bloqueAp0 := leerBloqueApuntadores(rutaDisco, pos)
+								for n := 0; n < len(bloqueAp0.B_content); n++ {
+									if bloqueAp0.B_content[n] != -1 {
+										pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp0.B_content[n]))
+										bloqueAp := leerBloqueApuntadores(rutaDisco, pos)
+
+										for m := 0; m < len(bloqueAp.B_content); m++ {
+											if bloqueAp.B_content[m] != -1 {
+												pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueAp.B_content[m]))
+												bloque = leerBloqueCarpeta(rutaDisco, pos)
+												for k := 0; k < len(bloque.B_content); k++ {
+													fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+													if bloque.B_content[k].B_inodo != -1 {
+														if string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]) == newRuta[0] {
+															existe = true
+															iPos := sb.S_inode_start + (int64(unsafe.Sizeof(inode)) * int64(bloque.B_content[k].B_inodo))
+															inode = leerInodo(rutaDisco, iPos)
+															crearCarpeta(newRuta, sb, inode, rutaDisco, p, int64(bloque.B_content[k].B_inodo))
+															break
+														}
+													}
+												}
+												if existe == true {
+													break
+												}
+											}
+										}
+										if existe == true {
+											break
+										}
 									}
 								}
-							}
-							if existe == true {
-								break
+								if existe == true {
+									break
+								}
 							}
 						}
+					} else {
+						break
 					}
-				} else {
-					break
 				}
 			}
+			if existe == false {
+				guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+			}
 		}
-		if existe == false {
-			guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-		}
+	} else {
+		colorize(ColorRed, "Error No Tiene Permisos De Lectura")
 	}
 }
 
 func guardarCarpeta(inodoR inodo, sb superbloque, rutaDisco string, ruta []string, padre int64, p bool) {
-	var newRuta []string
-	for i := 1; i < len(ruta); i++ {
-		newRuta = append(newRuta, ruta[i])
-	}
-	fmt.Println("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
-	var bit [1]byte
-	copy(bit[:], "0")
-	bloque := carpeta{}
-	if len(newRuta) != 0 {
-		for i := 0; i < len(inodoR.I_block); i++ {
-			fmt.Println(inodoR.I_block[i], "-Inodo")
-			if inodoR.I_block[i] != -1 {
-				pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
-				if inodoR.I_type == bit {
-					creado := false
-					if i != 14 && i != 15 {
-						bloque = leerBloqueCarpeta(rutaDisco, pos)
-						for k := 0; k < len(bloque.B_content); k++ {
-							if bloque.B_content[k].B_inodo == -1 {
+	_, escritura := isPermited(inodoR)
+	if escritura == true {
+		var newRuta []string
+		for i := 1; i < len(ruta); i++ {
+			newRuta = append(newRuta, ruta[i])
+		}
+		fmt.Println("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
+		var bit [1]byte
+		copy(bit[:], "0")
+		bloque := carpeta{}
+		if len(newRuta) != 0 {
+			for i := 0; i < len(inodoR.I_block); i++ {
+				fmt.Println(inodoR.I_block[i], "-Inodo")
+				if inodoR.I_block[i] != -1 {
+					pos := sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * inodoR.I_block[i])
+					if inodoR.I_type == bit {
+						creado := false
+						if i != 14 && i != 15 {
+							bloque = leerBloqueCarpeta(rutaDisco, pos)
+							for k := 0; k < len(bloque.B_content); k++ {
+								if bloque.B_content[k].B_inodo == -1 {
 
-								bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
-								copy(bloque.B_content[k].B_name[:], newRuta[0])
-								fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+									bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
+									copy(bloque.B_content[k].B_name[:], newRuta[0])
+									fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
 
-								bitmap := leerBitMapInodos(sb, rutaDisco)
-								bitmap[sb.S_first_ino] = 1
+									bitmap := leerBitMapInodos(sb, rutaDisco)
+									bitmap[sb.S_first_ino] = 1
 
-								sb.S_inodes_count = sb.S_inodes_count + 1
-								sb.S_free_inodes_count = sb.S_free_inodes_count - 1
-								sb.S_first_ino = getFirstFree(bitmap)
+									sb.S_inodes_count = sb.S_inodes_count + 1
+									sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+									sb.S_first_ino = getFirstFree(bitmap)
 
-								fmt.Println(sb.S_first_ino, "-primer inodo libre")
+									fmt.Println(sb.S_first_ino, "-primer inodo libre")
 
-								idUser, _ := strconv.Atoi(session[0])
-								inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
-								particion, _, _ := buscarParticionMontada(session[5])
+									idUser, _ := strconv.Atoi(session[0])
+									inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
+									particion, _, _ := buscarParticionMontada(session[5])
 
-								posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
+									posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
 
-								bloqueHome := carpeta{}
+									bloqueHome := carpeta{}
 
-								contenido := content{}
-								copy(contenido.B_name[:], ".")
-								contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
-								bloqueHome.B_content[0] = contenido
+									contenido := content{}
+									copy(contenido.B_name[:], ".")
+									contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
+									bloqueHome.B_content[0] = contenido
 
-								contenido = content{}
-								copy(contenido.B_name[:], "..")
-								contenido.B_inodo = int32(padre)
-								bloqueHome.B_content[1] = contenido
+									contenido = content{}
+									copy(contenido.B_name[:], "..")
+									contenido.B_inodo = int32(padre)
+									bloqueHome.B_content[1] = contenido
 
-								contenido = content{}
-								contenido.B_inodo = -1
-								bloqueHome.B_content[2] = contenido
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[2] = contenido
 
-								contenido = content{}
-								contenido.B_inodo = -1
-								bloqueHome.B_content[3] = contenido
+									contenido = content{}
+									contenido.B_inodo = -1
+									bloqueHome.B_content[3] = contenido
 
-								inodoNew.I_block[0] = sb.S_first_blo
+									inodoNew.I_block[0] = sb.S_first_blo
 
-								bitmapB := leerBitMapBloques(sb, rutaDisco)
-								bitmapB[sb.S_first_blo] = 1
+									bitmapB := leerBitMapBloques(sb, rutaDisco)
+									bitmapB[sb.S_first_blo] = 1
 
-								bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-								sb.S_blocks_count = sb.S_blocks_count + 1
-								sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-								sb.S_first_blo = getFirstFree(bitmapB)
+									bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+									sb.S_blocks_count = sb.S_blocks_count + 1
+									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+									sb.S_first_blo = getFirstFree(bitmapB)
 
-								if p == true {
-									escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
-									escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-									escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-									escribirInodo(rutaDisco, inodoNew, posI)
-									escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-									escribirBloqueCarpeta(rutaDisco, bloque, pos)
-									guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
-									creado = true
-								} else {
-									if len(newRuta) == 1 {
+									if p == true {
 										escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
 										escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 										escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 										escribirInodo(rutaDisco, inodoNew, posI)
 										escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 										escribirBloqueCarpeta(rutaDisco, bloque, pos)
+										guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
 										creado = true
 									} else {
-										colorize(ColorRed, "Error En La Escritura")
+										if len(newRuta) == 1 {
+											escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+											escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+											escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+											escribirInodo(rutaDisco, inodoNew, posI)
+											escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+											escribirBloqueCarpeta(rutaDisco, bloque, pos)
+											creado = true
+										} else {
+											colorize(ColorRed, "Error En La Escritura")
+										}
 									}
+									break
 								}
+							}
+							if creado == true {
 								break
 							}
-						}
-						if creado == true {
-							break
-						}
-					} else {
-						if i == 14 {
+						} else {
+							if i == 14 {
 
-							bloqueApuntador := leerBloqueApuntadores(rutaDisco, pos)
+								bloqueApuntador := leerBloqueApuntadores(rutaDisco, pos)
 
-							for m := 0; m < len(bloqueApuntador.B_content); m++ {
-								if bloqueApuntador.B_content[m] != -1 {
-									pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador.B_content[m]))
-									bloque = leerBloqueCarpeta(rutaDisco, pos)
-									for k := 0; k < len(bloque.B_content); k++ {
-										if bloque.B_content[k].B_inodo == -1 {
+								for m := 0; m < len(bloqueApuntador.B_content); m++ {
+									if bloqueApuntador.B_content[m] != -1 {
+										pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador.B_content[m]))
+										bloque = leerBloqueCarpeta(rutaDisco, pos)
+										for k := 0; k < len(bloque.B_content); k++ {
+											if bloque.B_content[k].B_inodo == -1 {
 
-											bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
-											copy(bloque.B_content[k].B_name[:], newRuta[0])
-											fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+												bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
+												copy(bloque.B_content[k].B_name[:], newRuta[0])
+												fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
 
-											bitmap := leerBitMapInodos(sb, rutaDisco)
-											bitmap[sb.S_first_ino] = 1
+												bitmap := leerBitMapInodos(sb, rutaDisco)
+												bitmap[sb.S_first_ino] = 1
 
-											sb.S_inodes_count = sb.S_inodes_count + 1
-											sb.S_free_inodes_count = sb.S_free_inodes_count - 1
-											sb.S_first_ino = getFirstFree(bitmap)
+												sb.S_inodes_count = sb.S_inodes_count + 1
+												sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+												sb.S_first_ino = getFirstFree(bitmap)
 
-											fmt.Println(sb.S_first_ino, "-primer inodo libre")
+												fmt.Println(sb.S_first_ino, "-primer inodo libre")
 
-											idUser, _ := strconv.Atoi(session[0])
-											inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
-											particion, _, _ := buscarParticionMontada(session[5])
+												idUser, _ := strconv.Atoi(session[0])
+												inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
+												particion, _, _ := buscarParticionMontada(session[5])
 
-											posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
+												posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
 
-											bloqueHome := carpeta{}
+												bloqueHome := carpeta{}
 
-											contenido := content{}
-											copy(contenido.B_name[:], ".")
-											contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
-											bloqueHome.B_content[0] = contenido
+												contenido := content{}
+												copy(contenido.B_name[:], ".")
+												contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
+												bloqueHome.B_content[0] = contenido
 
-											contenido = content{}
-											copy(contenido.B_name[:], "..")
-											contenido.B_inodo = int32(padre)
-											bloqueHome.B_content[1] = contenido
+												contenido = content{}
+												copy(contenido.B_name[:], "..")
+												contenido.B_inodo = int32(padre)
+												bloqueHome.B_content[1] = contenido
 
-											contenido = content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[2] = contenido
+												contenido = content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[2] = contenido
 
-											contenido = content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[3] = contenido
+												contenido = content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[3] = contenido
 
-											inodoNew.I_block[0] = sb.S_first_blo
+												inodoNew.I_block[0] = sb.S_first_blo
 
-											bitmapB := leerBitMapBloques(sb, rutaDisco)
-											bitmapB[sb.S_first_blo] = 1
+												bitmapB := leerBitMapBloques(sb, rutaDisco)
+												bitmapB[sb.S_first_blo] = 1
 
-											bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-											sb.S_blocks_count = sb.S_blocks_count + 1
-											sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-											sb.S_first_blo = getFirstFree(bitmapB)
+												bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+												sb.S_blocks_count = sb.S_blocks_count + 1
+												sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+												sb.S_first_blo = getFirstFree(bitmapB)
 
-											if p == true {
-												escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
-												escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-												escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-												escribirInodo(rutaDisco, inodoNew, posI)
-												escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-												escribirBloqueCarpeta(rutaDisco, bloque, pos)
-												guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
-												creado = true
-											} else {
-												fmt.Println(newRuta)
-												if len(newRuta) == 1 {
+												if p == true {
 													escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
 													escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 													escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 													escribirInodo(rutaDisco, inodoNew, posI)
 													escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 													escribirBloqueCarpeta(rutaDisco, bloque, pos)
+													guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
 													creado = true
 												} else {
-													colorize(ColorRed, "Error 2 En La Escritura")
-												}
-											}
-											break
-										}
-									}
-									if creado == true {
-										break
-									}
-								} else {
-
-									bloqueHome := carpeta{}
-									contenido := content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[0] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[1] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[2] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[3] = contenido
-
-									bloqueApuntador.B_content[m] = int32(sb.S_first_blo)
-
-									bitmapB := leerBitMapBloques(sb, rutaDisco)
-									bitmapB[sb.S_first_blo] = 1
-
-									bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-									bAPos := sb.S_block_start + (int64(unsafe.Sizeof(inodoR)) * int64(inodoR.I_block[i]))
-
-									sb.S_blocks_count = sb.S_blocks_count + 1
-									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-									sb.S_first_blo = getFirstFree(bitmapB)
-
-									particion, _, _ := buscarParticionMontada(session[5])
-
-									if p == true {
-										escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-										escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-										escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
-										escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-										guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-									} else {
-										if len(ruta) == 2 {
-											escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-											escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-											escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
-											escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-											guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-										} else {
-											colorize(ColorRed, "Error En La Escritura 3")
-										}
-									}
-								}
-							}
-
-						} else {
-							bloqueApuntador0 := leerBloqueApuntadores(rutaDisco, pos)
-
-							for n := 0; n < len(bloqueApuntador0.B_content); n++ {
-								if bloqueApuntador0.B_content[n] != -1 {
-									pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador0.B_content[n]))
-									bloqueApuntador := leerBloqueApuntadores(rutaDisco, pos)
-
-									for m := 0; m < len(bloqueApuntador.B_content); m++ {
-										if bloqueApuntador.B_content[m] != -1 {
-											pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador.B_content[m]))
-											bloque = leerBloqueCarpeta(rutaDisco, pos)
-											for k := 0; k < len(bloque.B_content); k++ {
-												if bloque.B_content[k].B_inodo == -1 {
-
-													bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
-													copy(bloque.B_content[k].B_name[:], newRuta[0])
-													fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
-
-													bitmap := leerBitMapInodos(sb, rutaDisco)
-													bitmap[sb.S_first_ino] = 1
-
-													sb.S_inodes_count = sb.S_inodes_count + 1
-													sb.S_free_inodes_count = sb.S_free_inodes_count - 1
-													sb.S_first_ino = getFirstFree(bitmap)
-
-													fmt.Println(sb.S_first_ino, "-primer inodo libre")
-
-													idUser, _ := strconv.Atoi(session[0])
-													inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
-													particion, _, _ := buscarParticionMontada(session[5])
-
-													posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
-
-													bloqueHome := carpeta{}
-
-													contenido := content{}
-													copy(contenido.B_name[:], ".")
-													contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
-													bloqueHome.B_content[0] = contenido
-
-													contenido = content{}
-													copy(contenido.B_name[:], "..")
-													contenido.B_inodo = int32(padre)
-													bloqueHome.B_content[1] = contenido
-
-													contenido = content{}
-													contenido.B_inodo = -1
-													bloqueHome.B_content[2] = contenido
-
-													contenido = content{}
-													contenido.B_inodo = -1
-													bloqueHome.B_content[3] = contenido
-
-													inodoNew.I_block[0] = sb.S_first_blo
-
-													bitmapB := leerBitMapBloques(sb, rutaDisco)
-													bitmapB[sb.S_first_blo] = 1
-
-													bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-													sb.S_blocks_count = sb.S_blocks_count + 1
-													sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-													sb.S_first_blo = getFirstFree(bitmapB)
-
-													if p == true {
+													fmt.Println(newRuta)
+													if len(newRuta) == 1 {
 														escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
 														escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 														escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 														escribirInodo(rutaDisco, inodoNew, posI)
 														escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 														escribirBloqueCarpeta(rutaDisco, bloque, pos)
-														guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
 														creado = true
 													} else {
-														if len(newRuta) == 1 {
-															escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
-															escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-															escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-															escribirInodo(rutaDisco, inodoNew, posI)
-															escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-															escribirBloqueCarpeta(rutaDisco, bloque, pos)
-															creado = true
-														} else {
-															colorize(ColorRed, "Error En La Escritura 4")
-														}
+														colorize(ColorRed, "Error 2 En La Escritura")
 													}
-													break
 												}
-											}
-											if creado == true {
 												break
 											}
+										}
+										if creado == true {
+											break
+										}
+									} else {
+
+										bloqueHome := carpeta{}
+										contenido := content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[0] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[1] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[2] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[3] = contenido
+
+										bloqueApuntador.B_content[m] = int32(sb.S_first_blo)
+
+										bitmapB := leerBitMapBloques(sb, rutaDisco)
+										bitmapB[sb.S_first_blo] = 1
+
+										bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+										bAPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(inodoR.I_block[i]))
+
+										sb.S_blocks_count = sb.S_blocks_count + 1
+										sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+										sb.S_first_blo = getFirstFree(bitmapB)
+
+										particion, _, _ := buscarParticionMontada(session[5])
+
+										if p == true {
+											escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+											escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+											escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
+											escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+											guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 										} else {
-											bloqueHome := carpeta{}
-											contenido := content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[0] = contenido
-
-											contenido = content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[1] = contenido
-
-											contenido = content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[2] = contenido
-
-											contenido = content{}
-											contenido.B_inodo = -1
-											bloqueHome.B_content[3] = contenido
-
-											bloqueApuntador.B_content[m] = int32(sb.S_first_blo)
-
-											bitmapB := leerBitMapBloques(sb, rutaDisco)
-											bitmapB[sb.S_first_blo] = 1
-
-											bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-											bAPos := sb.S_block_start + (int64(unsafe.Sizeof(inodoR)) * int64(inodoR.I_block[i]))
-
-											sb.S_blocks_count = sb.S_blocks_count + 1
-											sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-											sb.S_first_blo = getFirstFree(bitmapB)
-
-											particion, _, _ := buscarParticionMontada(session[5])
-
-											if p == true {
+											if len(ruta) == 2 {
 												escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 												escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 												escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
 												escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 												guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 											} else {
-												if len(ruta) == 2 {
+												colorize(ColorRed, "Error En La Escritura 3")
+											}
+										}
+									}
+								}
+
+							} else {
+								bloqueApuntador0 := leerBloqueApuntadores(rutaDisco, pos)
+
+								for n := 0; n < len(bloqueApuntador0.B_content); n++ {
+									if bloqueApuntador0.B_content[n] != -1 {
+										pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador0.B_content[n]))
+										bloqueApuntador := leerBloqueApuntadores(rutaDisco, pos)
+
+										for m := 0; m < len(bloqueApuntador.B_content); m++ {
+											if bloqueApuntador.B_content[m] != -1 {
+												pos = sb.S_block_start + (int64(unsafe.Sizeof(bloque)) * int64(bloqueApuntador.B_content[m]))
+												bloque = leerBloqueCarpeta(rutaDisco, pos)
+												for k := 0; k < len(bloque.B_content); k++ {
+													if bloque.B_content[k].B_inodo == -1 {
+
+														bloque.B_content[k].B_inodo = int32(sb.S_first_ino)
+														copy(bloque.B_content[k].B_name[:], newRuta[0])
+														fmt.Println(bloque.B_content[k].B_inodo, "-", string(bloque.B_content[k].B_name[:clen(bloque.B_content[k].B_name[:])]))
+
+														bitmap := leerBitMapInodos(sb, rutaDisco)
+														bitmap[sb.S_first_ino] = 1
+
+														sb.S_inodes_count = sb.S_inodes_count + 1
+														sb.S_free_inodes_count = sb.S_free_inodes_count - 1
+														sb.S_first_ino = getFirstFree(bitmap)
+
+														fmt.Println(sb.S_first_ino, "-primer inodo libre")
+
+														idUser, _ := strconv.Atoi(session[0])
+														inodoNew := crearInodo(int64(idUser), getIdGroup(rutaDisco, sb), 0, "0", 664)
+														particion, _, _ := buscarParticionMontada(session[5])
+
+														posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(bloque.B_content[k].B_inodo))
+
+														bloqueHome := carpeta{}
+
+														contenido := content{}
+														copy(contenido.B_name[:], ".")
+														contenido.B_inodo = int32(bloque.B_content[k].B_inodo)
+														bloqueHome.B_content[0] = contenido
+
+														contenido = content{}
+														copy(contenido.B_name[:], "..")
+														contenido.B_inodo = int32(padre)
+														bloqueHome.B_content[1] = contenido
+
+														contenido = content{}
+														contenido.B_inodo = -1
+														bloqueHome.B_content[2] = contenido
+
+														contenido = content{}
+														contenido.B_inodo = -1
+														bloqueHome.B_content[3] = contenido
+
+														inodoNew.I_block[0] = sb.S_first_blo
+
+														bitmapB := leerBitMapBloques(sb, rutaDisco)
+														bitmapB[sb.S_first_blo] = 1
+
+														bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+														sb.S_blocks_count = sb.S_blocks_count + 1
+														sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+														sb.S_first_blo = getFirstFree(bitmapB)
+
+														if p == true {
+															escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+															escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+															escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+															escribirInodo(rutaDisco, inodoNew, posI)
+															escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+															escribirBloqueCarpeta(rutaDisco, bloque, pos)
+															guardarCarpeta(inodoNew, sb, rutaDisco, newRuta, int64(bloque.B_content[k].B_inodo), p)
+															creado = true
+														} else {
+															if len(newRuta) == 1 {
+																escribirBitmap(rutaDisco, bitmap, sb.S_bm_inode_start)
+																escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+																escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+																escribirInodo(rutaDisco, inodoNew, posI)
+																escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+																escribirBloqueCarpeta(rutaDisco, bloque, pos)
+																creado = true
+															} else {
+																colorize(ColorRed, "Error En La Escritura 4")
+															}
+														}
+														break
+													}
+												}
+												if creado == true {
+													break
+												}
+											} else {
+												bloqueHome := carpeta{}
+												contenido := content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[0] = contenido
+
+												contenido = content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[1] = contenido
+
+												contenido = content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[2] = contenido
+
+												contenido = content{}
+												contenido.B_inodo = -1
+												bloqueHome.B_content[3] = contenido
+
+												bloqueApuntador.B_content[m] = int32(sb.S_first_blo)
+
+												bitmapB := leerBitMapBloques(sb, rutaDisco)
+												bitmapB[sb.S_first_blo] = 1
+
+												bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+												bAPos := sb.S_block_start + (int64(unsafe.Sizeof(inodoR)) * int64(inodoR.I_block[i]))
+
+												sb.S_blocks_count = sb.S_blocks_count + 1
+												sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+												sb.S_first_blo = getFirstFree(bitmapB)
+
+												particion, _, _ := buscarParticionMontada(session[5])
+
+												if p == true {
 													escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 													escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 													escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
 													escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 													guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 												} else {
-													colorize(ColorRed, "Error En La Escritura 5")
+													if len(ruta) == 2 {
+														escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+														escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+														escribirApuntador(rutaDisco, bloqueApuntador, bAPos)
+														escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
+														guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+													} else {
+														colorize(ColorRed, "Error En La Escritura 5")
+													}
 												}
 											}
 										}
-									}
-								} else {
-									bitmapB := leerBitMapBloques(sb, rutaDisco)
-									bitmapB[sb.S_first_blo] = 1
-
-									sb.S_blocks_count = sb.S_blocks_count + 1
-									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-									sb.S_first_blo = getFirstFree(bitmapB)
-
-									bloqueHome := carpeta{}
-									contenido := content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[0] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[1] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[2] = contenido
-
-									contenido = content{}
-									contenido.B_inodo = -1
-									bloqueHome.B_content[3] = contenido
-
-									inodoR.I_block[i] = sb.S_first_blo
-									fmt.Println(padre)
-
-									bitmapB[sb.S_first_blo] = 1
-
-									bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-									posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
-
-									sb.S_blocks_count = sb.S_blocks_count + 1
-									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-									sb.S_first_blo = getFirstFree(bitmapB)
-
-									bloqueApuntador := apuntador{}
-									bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
-
-									for i := 1; i < len(bloqueApuntador.B_content); i++ {
-										bloqueApuntador.B_content[i] = -1
-									}
-
-									bitmapB[sb.S_first_blo] = 1
-
-									bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-
-									sb.S_blocks_count = sb.S_blocks_count + 1
-									sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-									sb.S_first_blo = getFirstFree(bitmapB)
-
-									particion, _, _ := buscarParticionMontada(session[5])
-
-									posPA := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(inodoR.I_block[i]))
-
-									if p == true {
-										escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-										escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-										escribirInodo(rutaDisco, inodoR, posI)
-										escribirApuntador(rutaDisco, bloqueApuntador0, posPA)
-										escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
-										escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
-										guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 									} else {
-										if len(ruta) == 2 {
+										bloqueApuntador0.B_content[n] = int32(sb.S_first_blo)
+										bitmapB := leerBitMapBloques(sb, rutaDisco)
+										bitmapB[sb.S_first_blo] = 1
+
+										sb.S_blocks_count = sb.S_blocks_count + 1
+										sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+										sb.S_first_blo = getFirstFree(bitmapB)
+
+										bloqueHome := carpeta{}
+										contenido := content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[0] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[1] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[2] = contenido
+
+										contenido = content{}
+										contenido.B_inodo = -1
+										bloqueHome.B_content[3] = contenido
+
+										inodoR.I_block[i] = sb.S_first_blo
+										fmt.Println(padre)
+
+										bitmapB[sb.S_first_blo] = 1
+
+										bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+										posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
+
+										sb.S_blocks_count = sb.S_blocks_count + 1
+										sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+										sb.S_first_blo = getFirstFree(bitmapB)
+
+										bloqueApuntador := apuntador{}
+										bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+
+										for i := 1; i < len(bloqueApuntador.B_content); i++ {
+											bloqueApuntador.B_content[i] = -1
+										}
+
+										bitmapB[sb.S_first_blo] = 1
+
+										bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+
+										sb.S_blocks_count = sb.S_blocks_count + 1
+										sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+										sb.S_first_blo = getFirstFree(bitmapB)
+
+										particion, _, _ := buscarParticionMontada(session[5])
+
+										posPA := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(inodoR.I_block[i]))
+
+										if p == true {
 											escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 											escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 											escribirInodo(rutaDisco, inodoR, posI)
@@ -4353,226 +5340,238 @@ func guardarCarpeta(inodoR inodo, sb superbloque, rutaDisco string, ruta []strin
 											escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
 											guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 										} else {
-											colorize(ColorRed, "Error En La Escritura 6")
+											if len(ruta) == 2 {
+												escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+												escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+												escribirInodo(rutaDisco, inodoR, posI)
+												escribirApuntador(rutaDisco, bloqueApuntador0, posPA)
+												escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
+												escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
+												guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+											} else {
+												colorize(ColorRed, "Error En La Escritura 6")
+											}
 										}
+										break
 									}
-									break
 								}
 							}
 						}
+					} else {
+						break
 					}
 				} else {
-					break
-				}
-			} else {
-				if i != 14 && i != 15 {
-					bloqueHome := carpeta{}
-					contenido := content{}
-					contenido.B_inodo = -1
-					bloqueHome.B_content[0] = contenido
+					if i != 14 && i != 15 {
+						bloqueHome := carpeta{}
+						contenido := content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[0] = contenido
 
-					contenido = content{}
-					contenido.B_inodo = -1
-					bloqueHome.B_content[1] = contenido
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[1] = contenido
 
-					contenido = content{}
-					contenido.B_inodo = -1
-					bloqueHome.B_content[2] = contenido
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[2] = contenido
 
-					contenido = content{}
-					contenido.B_inodo = -1
-					bloqueHome.B_content[3] = contenido
+						contenido = content{}
+						contenido.B_inodo = -1
+						bloqueHome.B_content[3] = contenido
 
-					inodoR.I_block[i] = sb.S_first_blo
-					fmt.Println(padre)
+						inodoR.I_block[i] = sb.S_first_blo
+						fmt.Println(padre)
 
-					bitmapB := leerBitMapBloques(sb, rutaDisco)
-					bitmapB[sb.S_first_blo] = 1
+						bitmapB := leerBitMapBloques(sb, rutaDisco)
+						bitmapB[sb.S_first_blo] = 1
 
-					bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-					posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
+						bPos := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+						posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
 
-					sb.S_blocks_count = sb.S_blocks_count + 1
-					sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-					sb.S_first_blo = getFirstFree(bitmapB)
+						sb.S_blocks_count = sb.S_blocks_count + 1
+						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+						sb.S_first_blo = getFirstFree(bitmapB)
 
-					particion, _, _ := buscarParticionMontada(session[5])
+						particion, _, _ := buscarParticionMontada(session[5])
 
-					if p == true {
-						escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-						escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-						escribirInodo(rutaDisco, inodoR, posI)
-						escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
-						guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-					} else {
-						if len(ruta) == 2 {
+						if p == true {
 							escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 							escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 							escribirInodo(rutaDisco, inodoR, posI)
 							escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 							guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 						} else {
-							colorize(ColorRed, "Error En La Escritura 7")
-						}
-					}
-					break
-				} else {
-					if i == 14 {
-
-						bloqueHome := carpeta{}
-						contenido := content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[0] = contenido
-
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[1] = contenido
-
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[2] = contenido
-
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[3] = contenido
-
-						inodoR.I_block[i] = sb.S_first_blo
-						fmt.Println(padre)
-
-						bitmapB := leerBitMapBloques(sb, rutaDisco)
-						bitmapB[sb.S_first_blo] = 1
-
-						bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-						posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
-
-						sb.S_blocks_count = sb.S_blocks_count + 1
-						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-						sb.S_first_blo = getFirstFree(bitmapB)
-
-						bloqueApuntador := apuntador{}
-						bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
-
-						for i := 1; i < len(bloqueApuntador.B_content); i++ {
-							bloqueApuntador.B_content[i] = -1
-						}
-
-						bitmapB[sb.S_first_blo] = 1
-
-						bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-
-						sb.S_blocks_count = sb.S_blocks_count + 1
-						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-						sb.S_first_blo = getFirstFree(bitmapB)
-
-						particion, _, _ := buscarParticionMontada(session[5])
-
-						if p == true {
-							escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-							escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-							escribirInodo(rutaDisco, inodoR, posI)
-							escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
-							escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
-							guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-						} else {
 							if len(ruta) == 2 {
 								escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 								escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 								escribirInodo(rutaDisco, inodoR, posI)
-								escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
-								escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
+								escribirBloqueCarpeta(rutaDisco, bloqueHome, bPos)
 								guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 							} else {
-								colorize(ColorRed, "Error En La Escritura 8")
+								colorize(ColorRed, "Error En La Escritura 7")
 							}
 						}
 						break
 					} else {
-						bloqueHome := carpeta{}
-						contenido := content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[0] = contenido
+						if i == 14 {
 
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[1] = contenido
+							bloqueHome := carpeta{}
+							contenido := content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[0] = contenido
 
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[2] = contenido
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[1] = contenido
 
-						contenido = content{}
-						contenido.B_inodo = -1
-						bloqueHome.B_content[3] = contenido
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[2] = contenido
 
-						inodoR.I_block[i] = sb.S_first_blo
-						fmt.Println(padre)
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[3] = contenido
 
-						bitmapB := leerBitMapBloques(sb, rutaDisco)
-						bitmapB[sb.S_first_blo] = 1
+							inodoR.I_block[i] = sb.S_first_blo
+							fmt.Println(padre)
 
-						bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-						posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
+							bitmapB := leerBitMapBloques(sb, rutaDisco)
+							bitmapB[sb.S_first_blo] = 1
 
-						sb.S_blocks_count = sb.S_blocks_count + 1
-						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-						sb.S_first_blo = getFirstFree(bitmapB)
+							bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
 
-						bloqueApuntador := apuntador{}
-						bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
 
-						for i := 1; i < len(bloqueApuntador.B_content); i++ {
-							bloqueApuntador.B_content[i] = -1
-						}
+							bloqueApuntador := apuntador{}
+							bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
 
-						bitmapB[sb.S_first_blo] = 1
+							for i := 1; i < len(bloqueApuntador.B_content); i++ {
+								bloqueApuntador.B_content[i] = -1
+							}
 
-						bApuntador1 := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							bitmapB[sb.S_first_blo] = 1
 
-						sb.S_blocks_count = sb.S_blocks_count + 1
-						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-						sb.S_first_blo = getFirstFree(bitmapB)
+							bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
 
-						bloqueApuntador1 := apuntador{}
-						bloqueApuntador1.B_content[0] = int32(sb.S_first_blo)
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
 
-						for i := 1; i < len(bloqueApuntador1.B_content); i++ {
-							bloqueApuntador1.B_content[i] = -1
-						}
+							particion, _, _ := buscarParticionMontada(session[5])
 
-						bitmapB[sb.S_first_blo] = 1
-
-						sb.S_blocks_count = sb.S_blocks_count + 1
-						sb.S_free_blocks_count = sb.S_free_blocks_count - 1
-						sb.S_first_blo = getFirstFree(bitmapB)
-
-						bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
-						particion, _, _ := buscarParticionMontada(session[5])
-
-						if p == true {
-							escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
-							escribirSuperBloque(rutaDisco, sb, particion.Part_start)
-							escribirInodo(rutaDisco, inodoR, posI)
-							escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
-							escribirApuntador(rutaDisco, bloqueApuntador1, bApuntador1)
-							escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
-							guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
-						} else {
-							if len(ruta) == 2 {
+							if p == true {
 								escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
 								escribirSuperBloque(rutaDisco, sb, particion.Part_start)
 								escribirInodo(rutaDisco, inodoR, posI)
-								escribirApuntador(rutaDisco, bloqueApuntador1, bApuntador1)
 								escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
 								escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
 								guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
 							} else {
-								colorize(ColorRed, "Error En La Escritura 9")
+								if len(ruta) == 2 {
+									escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+									escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+									escribirInodo(rutaDisco, inodoR, posI)
+									escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
+									escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
+									guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+								} else {
+									colorize(ColorRed, "Error En La Escritura 8")
+								}
+							}
+							break
+						} else {
+							bloqueHome := carpeta{}
+							contenido := content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[0] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[1] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[2] = contenido
+
+							contenido = content{}
+							contenido.B_inodo = -1
+							bloqueHome.B_content[3] = contenido
+
+							inodoR.I_block[i] = sb.S_first_blo
+							fmt.Println(padre)
+
+							bitmapB := leerBitMapBloques(sb, rutaDisco)
+							bitmapB[sb.S_first_blo] = 1
+
+							bApuntador := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							posI := sb.S_inode_start + (int64(unsafe.Sizeof(inodoR)) * int64(padre))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bloqueApuntador := apuntador{}
+							bloqueApuntador.B_content[0] = int32(sb.S_first_blo)
+
+							for i := 1; i < len(bloqueApuntador.B_content); i++ {
+								bloqueApuntador.B_content[i] = -1
+							}
+
+							bitmapB[sb.S_first_blo] = 1
+
+							bApuntador1 := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bloqueApuntador1 := apuntador{}
+							bloqueApuntador1.B_content[0] = int32(sb.S_first_blo)
+
+							for i := 1; i < len(bloqueApuntador1.B_content); i++ {
+								bloqueApuntador1.B_content[i] = -1
+							}
+
+							bitmapB[sb.S_first_blo] = 1
+
+							sb.S_blocks_count = sb.S_blocks_count + 1
+							sb.S_free_blocks_count = sb.S_free_blocks_count - 1
+							sb.S_first_blo = getFirstFree(bitmapB)
+
+							bCarpeta := sb.S_block_start + (int64(unsafe.Sizeof(bloqueHome)) * int64(sb.S_first_blo))
+							particion, _, _ := buscarParticionMontada(session[5])
+
+							if p == true {
+								escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+								escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+								escribirInodo(rutaDisco, inodoR, posI)
+								escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
+								escribirApuntador(rutaDisco, bloqueApuntador1, bApuntador1)
+								escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
+								guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+							} else {
+								if len(ruta) == 2 {
+									escribirBitmap(rutaDisco, bitmapB, sb.S_bm_block_start)
+									escribirSuperBloque(rutaDisco, sb, particion.Part_start)
+									escribirInodo(rutaDisco, inodoR, posI)
+									escribirApuntador(rutaDisco, bloqueApuntador1, bApuntador1)
+									escribirApuntador(rutaDisco, bloqueApuntador, bApuntador)
+									escribirBloqueCarpeta(rutaDisco, bloqueHome, bCarpeta)
+									guardarCarpeta(inodoR, sb, rutaDisco, ruta, padre, p)
+								} else {
+									colorize(ColorRed, "Error En La Escritura 9")
+								}
 							}
 						}
 					}
 				}
 			}
 		}
+	} else {
+		colorize(ColorRed, "Error No Tiene Permisos De Escritura")
 	}
 }
 
@@ -4645,7 +5644,7 @@ func crearUsuario(name string, pass string, group string) {
 				}
 				id = data[0]
 			} else if data[1] == "G" {
-				if data[0] == group {
+				if data[2] == group {
 					grupo = true
 					idG = data[2]
 				}
